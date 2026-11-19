@@ -3,6 +3,7 @@
 // Marker for the production-bundle check: TOHS_DEV_MOCK_API
 import type { Case, Partner } from '../../shared/types';
 import { isEmail, normalizePhone, normalizeTin } from '../../shared/validate';
+import { createStaffMock } from './mock-staff';
 
 const MARKER = 'TOHS_DEV_MOCK_API';
 
@@ -17,6 +18,8 @@ const partners: Partner[] = [
 const cases: Case[] = [
   { id: 'TS-2611-001', partnerId: 'TSP0001', clientName: 'Kedai Kopi Ah Seng', clientPhone: null, licenceType: '营业执照', council: 'MBPJ', step: 2, cancelled: false, missingDocs: null, submittedAt: '2026-11-03', price: 1800, markup: null, invoiceNo: null, clientPaid: false, clientPaidAt: null, notesInternal: null },
 ];
+
+const staffRoutes = createStaffMock(partners, cases);
 
 const views = [
   { viewedAt: '2026-11-18T03:12:00Z', country: 'MY' },
@@ -60,9 +63,12 @@ export function installMockApi(): void {
     await new Promise((r) => setTimeout(r, 120));
     const method = (init?.method ?? 'GET').toUpperCase();
     const path = url.pathname.replace('/api/admin', '');
-    const body = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : {};
+    const body = typeof init?.body === 'string' ? (JSON.parse(init.body) as Record<string, unknown>) : {};
 
     if (path === '/me') return json(200, me());
+
+    const handled = staffRoutes({ method, path, url, body, rawBody: init?.body, me: me() });
+    if (handled) return handled;
 
     if (path === '/partners' && method === 'GET') {
       const status = url.searchParams.get('status');

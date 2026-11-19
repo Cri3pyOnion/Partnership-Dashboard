@@ -15,3 +15,8 @@ export function klDateTime(iso: string): string {
   const time = d.toLocaleTimeString('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false });
   return `${day} ${time}`;
 }
+
+/** The current month, 2026-11, in Kuala Lumpur time. */
+export function currentMonth(now: Date = new Date()): string {
+  return now.toLocaleDateString('en-CA', { timeZone: TZ }).slice(0, 7);
+}

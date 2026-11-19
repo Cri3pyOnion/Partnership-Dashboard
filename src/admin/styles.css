@@ -513,3 +513,115 @@ select[aria-invalid='true'] {
     gap: 0;
   }
 }
+
+/* Staff pages for cases, commissions, reports, settings */
+.tag {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0 0.5rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  background: #ececE8;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.tag.b1 {
+  background: #e4ecfb;
+  color: #1d3f84;
+}
+
+.tag.pending {
+  background: #fff1d6;
+  color: #8a5a00;
+}
+
+.steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0 0 1rem;
+}
+
+.steps .btn.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1rem;
+  margin: 0 0 1rem;
+  display: grid;
+  gap: 0.8rem;
+}
+
+.panel h2 {
+  margin: 0;
+}
+
+.grid2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.8rem;
+}
+
+textarea {
+  font: inherit;
+  width: 100%;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  min-height: 4.5rem;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.check input {
+  width: auto;
+}
+
+.totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin: 0 0 1rem;
+}
+
+.totals > div {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.5rem 0.9rem;
+}
+
+.totals strong {
+  display: block;
+  font-size: 1.1rem;
+}
+
+.num {
+  text-align: right;
+}
+
+.footnote {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 0.6rem 0 0;
+}
+
+.statement-head {
+  margin: 0 0 1rem;
+}
+
+.statement-head h1 {
+  margin-bottom: 0.3rem;
+}
