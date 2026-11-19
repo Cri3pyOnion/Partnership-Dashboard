@@ -4,6 +4,7 @@ import { requireStaff } from './access';
 import type { AppEnv, Env } from './env';
 import { lazyRepo } from './lazy-repo';
 import type { Repo } from './repo';
+import { adminApp } from './routes/admin-app';
 import { adminCases } from './routes/admin-cases';
 import { adminDocuments } from './routes/admin-documents';
 import { adminCommissions } from './routes/admin-commissions';
@@ -26,6 +27,7 @@ export function createApp(deps: { makeRepo?: (env: Env) => Repo; makeStorage?: (
   });
 
   app.route('/', partnerView);
+  app.route('/', adminApp);
 
   app.get('/api/admin/me', requireStaff({ jwks: deps.jwks }), (c) => {
     const { email, name, role, team } = c.var.staff;
