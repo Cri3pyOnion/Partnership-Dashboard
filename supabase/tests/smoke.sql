@@ -1,4 +1,5 @@
 -- Smoke test. Assumes a fresh, UNSEEDED database with the init migration applied.
+-- Run ONLY on a fresh, unseeded database: nextval() is not rolled back, so partner_seq advances.
 -- Safe on a real database: everything is rolled back.
 begin;
 select next_partner_id() = 'TSP0001';

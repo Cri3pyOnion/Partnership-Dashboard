@@ -62,6 +62,8 @@ create table case_steps_history (
   changed_by text
 );
 
+create index case_steps_history_case_id_idx on case_steps_history (case_id);
+
 create table case_documents (
   id uuid primary key default gen_random_uuid(),
   case_id text not null references cases(id),
@@ -71,6 +73,8 @@ create table case_documents (
   uploaded_by text,
   uploaded_at timestamptz not null default now()
 );
+
+create index case_documents_case_id_idx on case_documents (case_id);
 
 create table commissions (
   case_id text primary key references cases(id),
@@ -112,7 +116,7 @@ create table case_counters (
 );
 
 -- updated_at maintenance
-create function set_updated_at() returns trigger language plpgsql as $$
+create function set_updated_at() returns trigger language plpgsql set search_path = public as $$
 begin
   new.updated_at = now();
   return new;
@@ -123,19 +127,19 @@ create trigger cases_updated_at before update on cases for each row execute func
 create trigger commissions_updated_at before update on commissions for each row execute function set_updated_at();
 
 -- ID generators
-create function next_partner_id() returns text language sql as $$
-  select 'TSP' || lpad(nextval('partner_seq')::text, 4, '0')
+create function next_partner_id() returns text language sql set search_path = public as $$
+  select 'TSP' || lpad(n::text, greatest(4, length(n::text)), '0') from (select nextval('partner_seq') as n) s
 $$;
 
 -- One atomic upsert: concurrent callers never share a number.
-create function next_case_id(at timestamptz default now()) returns text language sql as $$
+create function next_case_id(at timestamptz default now()) returns text language sql set search_path = public as $$
   with k as (select to_char(at at time zone 'Asia/Kuala_Lumpur', 'YYMM') as yymm),
   c as (
     insert into case_counters (yymm, n) select yymm, 1 from k
     on conflict (yymm) do update set n = case_counters.n + 1
     returning yymm, n
   )
-  select 'TS-' || yymm || '-' || lpad(n::text, 3, '0') from c
+  select 'TS-' || yymm || '-' || lpad(n::text, greatest(3, length(n::text)), '0') from c
 $$;
 
 -- Row level security: on everywhere, no policies.
@@ -162,6 +166,19 @@ do $$ begin
     revoke execute on function next_partner_id() from authenticated;
     revoke execute on function next_case_id(timestamptz) from authenticated;
   end if;
+end $$;
+
+-- Defence in depth (Supabase only; guarded by pg_roles): API roles get no table/sequence/function privileges.
+do $$ declare r text; begin
+  foreach r in array array['anon','authenticated'] loop
+    if exists (select 1 from pg_roles where rolname = r) then
+      execute format('revoke all on all tables in schema public from %I', r);
+      execute format('revoke all on all sequences in schema public from %I', r);
+      execute format('alter default privileges in schema public revoke all on tables from %I', r);
+      execute format('alter default privileges in schema public revoke all on sequences from %I', r);
+      execute format('alter default privileges in schema public revoke execute on functions from %I', r);
+    end if;
+  end loop;
 end $$;
 
 -- Default settings

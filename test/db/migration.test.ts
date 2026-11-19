@@ -81,3 +81,21 @@ describe('migration + seed', () => {
     ).rejects.toThrow();
   });
 });
+
+describe('ids never truncate on overflow', () => {
+  it('partner ids grow past 4 digits', async () => {
+    const db = new PGlite();
+    await db.exec(migration);
+    await db.exec(`select setval('partner_seq', 9999)`);
+    const r = await db.query<{ id: string }>('select next_partner_id() as id');
+    expect(r.rows[0].id).toBe('TSP10000');
+  });
+
+  it('case numbers grow past 3 digits', async () => {
+    const db = new PGlite();
+    await db.exec(migration);
+    await db.exec(`insert into case_counters (yymm, n) values ('2611', 999)`);
+    const r = await db.query<{ id: string }>(`select next_case_id('2026-11-05 10:00+08') as id`);
+    expect(r.rows[0].id).toBe('TS-2611-1000');
+  });
+});
