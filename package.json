@@ -7,26 +7,37 @@
   },
   "scripts": {
     "dev": "wrangler dev",
-    "build": "vite build --outDir dist/admin",
+    "build": "vite build",
     "test": "vitest run",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.admin.json",
     "deploy": "npm run build && wrangler deploy",
+    "preview:admin": "vite --mode mock --open /admin/",
     "preview:partner": "tsx scripts/preview-partner-page.ts"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "0.23.0",
     "@cloudflare/workers-types": "5.20261104.1",
     "@electric-sql/pglite": "0.5.15",
+    "@testing-library/dom": "10.4.2",
+    "@testing-library/react": "16.3.3",
+    "@testing-library/user-event": "14.6.8",
     "@types/node": "22.20.4",
+    "@types/react": "18.3.31",
+    "@types/react-dom": "18.3.7",
+    "@vitejs/plugin-react": "5.2.0",
     "jsdom": "30.1.3",
     "tsx": "4.23.15",
     "typescript": "7.0.2",
+    "vite": "6.4.5",
     "vitest": "4.1.12",
     "wrangler": "4.157.0"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.119.0",
     "hono": "4.13.16",
-    "jose": "6.2.15"
+    "jose": "6.2.15",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-router-dom": "7.18.5"
   }
 }

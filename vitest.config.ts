@@ -15,7 +15,10 @@ export default defineConfig({
         })],
         test: { name: 'worker', include: ['test/worker/**/*.test.ts'] },
       },
-      { test: { name: 'admin', environment: 'jsdom', include: ['test/admin/**/*.test.ts'] } },
+      {
+        esbuild: { jsx: 'automatic' },
+        test: { name: 'admin', environment: 'jsdom', include: ['test/admin/**/*.test.{ts,tsx}'], setupFiles: ['test/admin/setup.ts'] },
+      },
     ],
   },
 });
