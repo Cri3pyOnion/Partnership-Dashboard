@@ -43,16 +43,22 @@ export interface Case {
   notesInternal: string;
 }
 
-// Placeholder shapes for Task 2+ (spec §4); fields are added when those tasks need them.
-export interface Commission {
-  id: string;
-  caseId: string;
-  partnerId: string;
-  amount: number;
-  status: CommissionStatus;
+export interface CommissionRules {
+  A1: { threshold: number; below: number; above: number };
+  B1: { partnerPricePercent: number; collectBeforeSubmit: boolean };
+  C1: { maxMarkup: number | null };
+  paidMarkedBy: 'admin' | 'staff';
 }
 
-export type CommissionRules = Record<PartnerCode, Record<string, number>>;
+export interface Commission {
+  caseId: string;
+  code: PartnerCode;
+  amount: number;
+  basis: string;
+  status: CommissionStatus;
+  paidAt: string | null;
+  paidBy: string | null;
+}
 
 export interface Settings {
   commissionRules: CommissionRules;
