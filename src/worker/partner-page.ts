@@ -2,7 +2,7 @@
 import { rm } from '../shared/money';
 import { CASE_STEPS, STEP_CANCELLED } from '../shared/status';
 import { PARTNER_CSS } from './partner-page.css';
-import type { PartnerView, PartnerViewCase } from './view-model';
+import type { MoneyKind, PartnerView, PartnerViewCase } from './view-model';
 
 const ESC: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 
@@ -67,9 +67,16 @@ export function renderPartnerPage(v: PartnerView, updatedAt: string): string {
   const cases = v.cases.length
     ? v.cases.map(caseCard).join('\n')
     : `<p class="empty">暂无案件 <span class="en">No cases yet</span></p>`;
+  // One column per kind of money; A1/C1 commission and B1 amounts owed are never added together.
+  const heads: Record<MoneyKind, string> = {
+    commission: '佣金 <span class="en">Commission</span>',
+    b1: `${esc("应付 Toh's Sign")} <span class="en">Owed</span>`,
+  };
+  const kinds = v.monthKinds;
+  const head = kinds.length > 1 ? kinds.map((k) => `<th class="r">${heads[k]}</th>`).join('') : '<th class="r">合计 <span class="en">Total</span></th>';
   const months = v.months.length
-    ? `<table><thead><tr><th>月份 <span class="en">Month</span></th><th class="r">合计 <span class="en">Total</span></th></tr></thead><tbody>${
-      v.months.map((m) => `<tr><td>${esc(m.month)}</td><td class="r">${esc(rm(m.total))}</td></tr>`).join('')
+    ? `<table><thead><tr><th>月份 <span class="en">Month</span></th>${head}</tr></thead><tbody>${
+      v.months.map((m) => `<tr><td>${esc(m.month)}</td>${kinds.map((k) => `<td class="r">${esc(rm(m[k]))}</td>`).join('')}</tr>`).join('')
     }</tbody></table>`
     : `<p class="empty">暂无记录 <span class="en">Nothing yet</span></p>`;
   const wa = v.whatsapp
@@ -88,8 +95,7 @@ ${b1}
 <section class="tiles" aria-label="概览 Summary">
 ${tile('进行中案件', 'Active', String(t.active))}
 ${tile('已完成', 'Done', String(t.done))}
-${tile(t.pendingLabel, 'Pending', rm(t.pending))}
-${tile(t.paidLabel, 'Paid', rm(t.paid))}
+${t.money.map((m) => `${tile(m.pendingLabel, 'Pending', rm(m.pending))}\n${tile(m.paidLabel, 'Paid', rm(m.paid))}`).join('\n')}
 </section>
 <h2>案件 <span class="en">Cases</span></h2>
 ${cases}

@@ -54,6 +54,23 @@ describe('renderPartnerPage', () => {
     expect(page('C1', '')).not.toContain('wa.me');
   });
 
+  it('a mixed-code partner sees both tile pairs and two monthly columns', () => {
+    const cases = demoCases();
+    const comms = [...demoCommissions(cases.slice(0, 3), 'C1'), ...demoCommissions(cases.slice(3), 'B1')];
+    const html = renderPartnerPage(buildPartnerView(demoPartner({ code: 'B1' }), cases, comms, ''), '2026-11-19 14:05');
+    for (const label of ['待发佣金', '已发佣金', '待付给 Toh&#39;s Sign', '已与 Toh&#39;s Sign 结清']) expect(html).toContain(label);
+    expect(html).toContain('<th class="r">佣金 <span class="en">Commission</span></th>');
+    expect(html).toContain('<th class="r">应付 Toh&#39;s Sign <span class="en">Owed</span></th>');
+    expect(html).not.toContain('合计 <span class="en">Total</span>');
+  });
+
+  it('a single-code partner sees one tile pair and one total column', () => {
+    const html = page('C1');
+    expect(html).toContain('待发佣金');
+    expect(html).not.toContain('待付给 Toh');
+    expect(html).toContain('合计 <span class="en">Total</span>');
+  });
+
   it('shows an en dash for a missing amount', () => {
     const html = renderPartnerPage(buildPartnerView(demoPartner(), [demoCases()[0]], [], ''), '2026-11-19 14:05');
     expect(html).toContain('<span class="amt">–</span>');

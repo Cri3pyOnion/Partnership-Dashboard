@@ -54,6 +54,21 @@ describe('GET /api/admin/reports/monthly', () => {
     expect(rest.sort()).toEqual(['listCases', 'listCommissions', 'listPartners']);
   });
 
+  it('previews cases with no commission row, loading settings once only when needed', async () => {
+    const { req, a, repo, json } = await seeded();
+    for (const price of [1800, 1000]) {
+      await repo.createCase({
+        partnerId: a.id, clientName: '无佣金', clientPhone: null, licenceType: '营业执照', council: null, missingDocs: null,
+        price, markup: null, invoiceNo: null, notesInternal: null, submittedAt: '2026-11-20',
+      }, 't');
+    }
+    const calls = countCalls(repo);
+    const rows = await json(await req(clerk, 'GET', '/api/admin/reports/monthly?month=2026-11'));
+    expect(rows.find((r: any) => r.partnerId === a.id)).toMatchObject({ cases: 4, revenue: 5600, commission: 250 + 150 + 100 });
+    expect(calls.filter((x) => x !== 'getStaff').sort()).toEqual(['getSettings', 'listCases', 'listCommissions', 'listPartners']);
+    expect(await repo.listCommissions({ partnerId: a.id, month: '2026-11' })).toHaveLength(3); // nothing saved
+  });
+
   it('400 on a missing or bad month; auth required', async () => {
     const { req, json } = await setupAdmin();
     for (const q of ['', '?month=2026-13', '?month=26-11', '?month=2026-1']) {

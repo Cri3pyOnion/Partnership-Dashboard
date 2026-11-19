@@ -1,5 +1,5 @@
 // Commission recalculation after a case change.
-import { applyCommission, calcCommission, isFrozen } from '../shared/commission';
+import { applyCommission, calcCommission, isFrozen, previewCommission } from '../shared/commission';
 import type { Case, Commission, CommissionRules, Partner, PartnerCode } from '../shared/types';
 import { refreshOrDrop } from './admin-support';
 import type { Env } from './env';
@@ -46,18 +46,7 @@ export async function recalcCase(env: Env, repo: Repo, caseId: string, opts: Rec
   return next;
 }
 
-/** The commission a case would have, or null when the rules reject it (markup over the cap). Never saved. */
-export function previewCommission(
-  c: Pick<Case, 'id' | 'price' | 'markup' | 'clientPaid' | 'cancelled'>,
-  partnerCode: PartnerCode,
-  rules: CommissionRules,
-): Commission | null {
-  try {
-    return nextCommission(c, c.id, partnerCode, null, rules);
-  } catch {
-    return null;
-  }
-}
+export { previewCommission };
 
 /**
  * Recalculate after a committed write without ever failing the response (R32). On failure the page

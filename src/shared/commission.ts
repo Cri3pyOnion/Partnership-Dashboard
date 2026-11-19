@@ -56,6 +56,22 @@ export function calcCommission(
   };
 }
 
+/**
+ * The commission a case with no row would have, or null when the rules reject it (markup over the
+ * cap). Never saved: every surface uses it to show a missing row the same way (R32).
+ */
+export function previewCommission(
+  c: Pick<Case, 'id' | 'price' | 'markup' | 'clientPaid' | 'cancelled'>,
+  partnerCode: PartnerCode,
+  rules: CommissionRules,
+): Commission | null {
+  try {
+    return applyCommission(c.id, null, calcCommission(c, partnerCode, rules), partnerCode);
+  } catch {
+    return null;
+  }
+}
+
 /** 已支付 and 已结清 are final: a recalculation never rewrites the row. */
 export const isFrozen = (cm: Commission | null, opts: { unsettle?: boolean } = {}): boolean =>
   cm?.status === '已支付' || (cm?.status === '已结清' && !opts.unsettle);

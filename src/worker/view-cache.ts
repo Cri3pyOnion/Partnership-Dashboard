@@ -1,6 +1,7 @@
 // KV snapshot of each partner's page, keyed by the SHA-256 of the link token.
 // The snapshot outlives Supabase outages: a hit never touches the repo.
-import type { Partner } from '../shared/types';
+import { previewCommission } from '../shared/commission';
+import type { Commission, Partner } from '../shared/types';
 import type { Env } from './env';
 import { renderPartnerPage } from './partner-page';
 import type { Repo } from './repo';
@@ -84,10 +85,22 @@ async function store(env: Env, repo: Repo, partnerId: string, token: string, sna
 }
 
 async function build(env: Env, repo: Repo, p: Partner): Promise<Snapshot> {
-  const [cases, comms] = await Promise.all([
+  const [cases, stored] = await Promise.all([
     repo.listCases({ partnerId: p.id }),
     repo.listCommissions({ partnerId: p.id }),
   ]);
+  // A case without a row (a failed recalculation, R32) is previewed like every staff surface does.
+  // The preview counts in the tiles and shows on the case line as normal. Settings load once, only if needed.
+  const comms: Commission[] = [...stored];
+  const have = new Set(stored.map((cm) => cm.caseId));
+  const missing = cases.filter((x) => !have.has(x.id));
+  if (missing.length) {
+    const rules = (await repo.getSettings()).commissionRules;
+    for (const x of missing) {
+      const cm = previewCommission(x, p.code, rules);
+      if (cm) comms.push(cm);
+    }
+  }
   const updatedAt = klStamp(new Date());
   const html = renderPartnerPage(buildPartnerView(p, cases, comms, env.MARKETING_WHATSAPP ?? ''), updatedAt);
   return { html, updatedAt, partnerId: p.id };

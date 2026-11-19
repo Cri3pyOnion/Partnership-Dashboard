@@ -33,10 +33,25 @@ export function adminReports(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
         s.revenue += x.price ?? 0;
       }
     }
+    const add = (pid: string, code: string, amount: number) => {
+      // B1 amounts are owed to Toh's Sign, so they never join the commission sum. The row's own code decides.
+      row(pid)[code === 'B1' ? 'b1Owed' : 'commission'] += amount;
+    };
     for (const cm of comms) {
       const pid = partnerOf.get(cm.caseId);
-      // B1 amounts are owed to Toh's Sign, so they never join the commission sum. The row's own code decides.
-      if (pid) row(pid)[cm.code === 'B1' ? 'b1Owed' : 'commission'] += cm.amount;
+      if (pid) add(pid, cm.code, cm.amount);
+    }
+    // A case without a row is previewed, as statements do. Settings load once, only if needed.
+    const have = new Set(comms.map((cm) => cm.caseId));
+    const missing = cases.filter((x) => !have.has(x.id));
+    if (missing.length) {
+      const rules = (await repo.getSettings()).commissionRules;
+      const codeOf = new Map(partners.map((p) => [p.id, p.code]));
+      for (const x of missing) {
+        const code = codeOf.get(x.partnerId);
+        const cm = code ? previewCommission(x, code, rules) : null;
+        if (cm) add(x.partnerId, cm.code, cm.amount);
+      }
     }
     return c.json(
       partners.filter((p) => sums.has(p.id)).map((p) => {

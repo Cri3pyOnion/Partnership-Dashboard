@@ -237,6 +237,24 @@ describe('best-effort KV and unexpected errors (R22)', () => {
     expect(await (await get(repo, `/p/${token}`)).text()).toContain('Bright Tuition Centre');
   });
 
+  it('the page previews a case with no commission row, with one getSettings (and none when no row is missing)', async () => {
+    const { repo, partner, token } = await seeded();
+    const counted = spy(repo);
+    await getPartnerView(ENV, counted.repo, token);
+    expect(counted.calls.filter((x) => x === 'getSettings')).toEqual([]);
+    await dropPartnerView(ENV, token);
+    await repo.createCase(caseInput(partner.id, { clientName: 'Glow Beauty Studio', markup: 150 }), 't');
+    await repo.createCase(caseInput(partner.id, { clientName: 'Bright Tuition Centre', markup: 250 }), 't');
+    const again = spy(repo);
+    const v = await getPartnerView(ENV, again.repo, token);
+    expect(again.calls.filter((x) => x === 'getSettings')).toEqual(['getSettings']);
+    expect(v!.html).toContain('<span class="amt">RM 150</span>');
+    expect(v!.html).toContain('<span class="amt">RM 250</span>');
+    expect(v!.html).not.toContain('<span class="amt">–</span>');
+    expect(v!.html).toContain('RM 700'); // pending tile: 300 + 150 + 250
+    expect(await repo.getCommission((await repo.listCases({ partnerId: partner.id }))[0].id)).toBeNull(); // never saved
+  });
+
   it('a malformed KV value falls through to a rebuild', async () => {
     const { repo, token } = await seeded();
     await ENV.VIEWS.put(await kvKey(token), JSON.stringify({ html: 42, partnerId: 'TSP0001' }));
