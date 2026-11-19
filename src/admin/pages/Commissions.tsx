@@ -18,6 +18,8 @@ interface Row {
   paidAt: string | null;
   paidBy: string | null;
   pending?: true;
+  /** The amount shown was recomputed under the current rules and differs from the stored row. */
+  stale?: true;
 }
 
 const B1_STATUSES: CommissionStatus[] = ['待付发票', '已结清'];
@@ -139,6 +141,11 @@ export function Commissions() {
                 <td>{r.code}</td>
                 <td>
                   <Amount amount={r.amount} code={r.code} pending={r.pending} />
+                  {r.stale && (
+                    <span className="tag" title="佣金规则已更改，此金额按现行规则计算">
+                      按新规则
+                    </span>
+                  )}
                 </td>
                 <td>
                   {r.status}

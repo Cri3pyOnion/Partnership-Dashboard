@@ -57,6 +57,13 @@ describe('Commissions', () => {
     expect(screen.getAllByText("应付 Toh's Sign").length).toBeGreaterThan(0);
   });
 
+  it('tags a row recomputed under new rules with 按新规则', async () => {
+    rows = [row('TS-2611-014', { amount: 180, stale: true })];
+    renderPage();
+    await screen.findByText('TS-2611-014');
+    expect(screen.getByText('按新规则')).toBeTruthy();
+  });
+
   it('offers 标记已支付 only for 可发放 rows', async () => {
     renderPage();
     await screen.findByText('TS-2611-014');

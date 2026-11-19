@@ -67,7 +67,7 @@ describe('POST /api/admin/commissions/:caseId/mark-paid', () => {
     await repo.updateCase(c.id, { price: 900 }, 't'); // changed after the admin loaded the list: now RM 100
     const res = await req(admin, 'POST', `/api/admin/commissions/${c.id}/mark-paid`, { expectedAmount: 150 });
     expect(res.status).toBe(409);
-    expect(await json(res)).toEqual({ error: '金额已变更，请刷新后再确认' });
+    expect(await json(res)).toEqual({ error: '金额已变更，请刷新后再确认', currentAmount: 100 });
     expect(await repo.getCommission(c.id)).toMatchObject({ amount: 150, status: '可发放', paidAt: null });
     expect(repo.auditLog.length).toBe(audits);
     expect((await req(admin, 'POST', `/api/admin/commissions/${c.id}/mark-paid`, { expectedAmount: 100 })).status).toBe(200);
@@ -153,6 +153,26 @@ describe('R33: mark-paid recomputes from the current case and rules', () => {
     expect(res.status).toBe(400);
     expect(await json(res)).toEqual({ error: '佣金尚未可发放' });
     expect((await repo.getCommission(c.id))!.status).toBe('可发放');
+  });
+
+  it('after a rule change the list shows the recomputed amount, and paying it from the list works (no 409 loop)', async () => {
+    const { req, c, repo, json } = await payable(); // A1, price 1800 → stored RM 150 可发放
+    const s = await repo.getSettings();
+    s.commissionRules.A1.above = 180; // rules change; the stored row is not recalculated (R29)
+    await repo.saveSettings(s, 't');
+    expect((await repo.getCommission(c.id))!.amount).toBe(150);
+    const list = await json(await req(admin, 'GET', '/api/admin/commissions'));
+    const row = list.find((r: { caseId: string }) => r.caseId === c.id);
+    expect(row).toMatchObject({ amount: 180, status: '可发放', stale: true });
+    const res = await req(admin, 'POST', `/api/admin/commissions/${c.id}/mark-paid`, { expectedAmount: row.amount });
+    expect(res.status).toBe(200);
+    expect(await repo.getCommission(c.id)).toMatchObject({ amount: 180, status: '已支付' });
+    // Once paid, the list shows the frozen amount even if the rules change again.
+    s.commissionRules.A1.above = 200;
+    await repo.saveSettings(s, 't');
+    const after = (await json(await req(admin, 'GET', '/api/admin/commissions'))).find((r: { caseId: string }) => r.caseId === c.id);
+    expect(after).toMatchObject({ amount: 180, status: '已支付' });
+    expect(after.stale).toBeUndefined();
   });
 
   it('a stale stored amount is never frozen: 409 for the shown amount, 200 once the recomputed one is confirmed', async () => {

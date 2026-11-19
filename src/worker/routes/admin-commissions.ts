@@ -16,27 +16,39 @@ export function adminCommissions(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
     const month = c.req.query('month');
     if (month !== undefined && !isMonth(month)) throw new HttpError(400, '月份格式不正确');
     const f = { partnerId: c.req.query('partnerId') || undefined, month };
-    // Two queries whatever the number of rows (subrequest cap).
-    const [cases, comms] = await Promise.all([c.var.repo.listCases(f), c.var.repo.listCommissions(f)]);
+    // Four queries whatever the number of rows (subrequest cap).
+    const [cases, comms, settings, partners] = await Promise.all([
+      c.var.repo.listCases(f), c.var.repo.listCommissions(f), c.var.repo.getSettings(), c.var.repo.listPartners({}),
+    ]);
+    const rules = settings.commissionRules;
+    const codeOf = new Map(partners.map((p) => [p.id, p.code]));
     const byId = new Map(cases.map((x) => [x.id, x]));
     const have = new Set(comms.map((cm) => cm.caseId));
     const missing = cases.filter((x) => !have.has(x.id));
     const rows: Array<Record<string, unknown>> = [];
-    for (const cm of comms) {
-      const cs = byId.get(cm.caseId);
+    for (const stored of comms) {
+      const cs = byId.get(stored.caseId);
       if (!cs) continue;
+      // Show what mark-paid will actually freeze: the amount recomputed from the current case and rules.
+      // Frozen rows (已支付, 已结清) come back unchanged. A row whose recompute fails (e.g. markup over a
+      // later-lowered cap) keeps its stored values.
+      let cm = stored;
+      try {
+        cm = nextCommission(cs, stored.caseId, codeOf.get(cs.partnerId) ?? stored.code, stored, rules);
+      } catch {
+        cm = stored;
+      }
+      const stale = cm.amount !== stored.amount || cm.status !== stored.status;
       rows.push({
         caseId: cm.caseId, clientName: cs.clientName, partnerId: cs.partnerId, code: cm.code, amount: cm.amount,
-        basis: cm.basis, status: cm.status, paidAt: cm.paidAt, paidBy: cm.paidBy,
+        basis: cm.basis, status: cm.status, paidAt: cm.paidAt, paidBy: cm.paidBy, ...(stale ? { stale: true } : {}),
       });
     }
     // A case without a commission row (a failed recalculation) is previewed in memory, never saved (R32).
     if (missing.length) {
-      const [settings, partners] = await Promise.all([c.var.repo.getSettings(), c.var.repo.listPartners({})]);
-      const codeOf = new Map(partners.map((p) => [p.id, p.code]));
       for (const cs of missing) {
         const code = codeOf.get(cs.partnerId);
-        const cm = code ? previewCommission(cs, code, settings.commissionRules) : null;
+        const cm = code ? previewCommission(cs, code, rules) : null;
         if (!cm) continue;
         rows.push({
           caseId: cs.id, clientName: cs.clientName, partnerId: cs.partnerId, code: cm.code, amount: cm.amount,
@@ -68,7 +80,9 @@ export function adminCommissions(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
     // Recompute from the current case and rules, so a stale stored amount is never frozen (R33).
     const next = nextCommission(cs, caseId, partner.code, cm, settings.commissionRules);
     if (next.status !== '可发放') throw new HttpError(400, '佣金尚未可发放');
-    if (round2(next.amount) !== round2(expected)) throw new HttpError(409, '金额已变更，请刷新后再确认');
+    if (round2(next.amount) !== round2(expected)) {
+      throw new HttpError(409, '金额已变更，请刷新后再确认', undefined, { currentAmount: round2(next.amount) });
+    }
     const paid = { ...next, status: '已支付' as const, paidAt: new Date().toISOString(), paidBy: staff.email };
     await repo.saveCommission(paid);
     await refreshOrDrop(c.env, repo, partner.id, partner.viewToken);
