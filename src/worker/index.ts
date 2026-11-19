@@ -4,7 +4,11 @@ import { requireStaff } from './access';
 import type { AppEnv, Env } from './env';
 import { lazyRepo } from './lazy-repo';
 import type { Repo } from './repo';
+import { adminCases } from './routes/admin-cases';
+import { adminCommissions } from './routes/admin-commissions';
 import { adminPartners } from './routes/admin-partners';
+import { adminReports, adminStatements } from './routes/admin-reports';
+import { adminSettings, adminStaff } from './routes/admin-settings';
 import { partnerView } from './routes/partner-view';
 import { SupabaseRepo } from './supabase-repo';
 
@@ -25,6 +29,12 @@ export function createApp(deps: { makeRepo?: (env: Env) => Repo; jwks?: JWTVerif
   });
 
   app.route('/api/admin/partners', adminPartners(deps.jwks));
+  app.route('/api/admin/cases', adminCases(deps.jwks));
+  app.route('/api/admin/commissions', adminCommissions(deps.jwks));
+  app.route('/api/admin/settings', adminSettings(deps.jwks));
+  app.route('/api/admin/staff', adminStaff(deps.jwks));
+  app.route('/api/admin/reports', adminReports(deps.jwks));
+  app.route('/api/admin/statements', adminStatements(deps.jwks));
 
   return app;
 }
