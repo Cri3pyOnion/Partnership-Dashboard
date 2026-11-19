@@ -142,3 +142,12 @@ export function adminStaff(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
 
   return r;
 }
+
+/** The licence type list only. Any staff may read it (the case form needs it); the rest of the settings stay admin only. */
+export function adminLicenceTypes(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
+  const r = new Hono<AppEnv>();
+  r.onError(adminErrorHandler);
+  r.use('*', requireStaff({ jwks }));
+  r.get('/', async (c) => c.json({ licenceTypes: (await c.var.repo.getSettings()).licenceTypes }));
+  return r;
+}

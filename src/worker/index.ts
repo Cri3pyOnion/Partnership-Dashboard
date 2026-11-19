@@ -10,7 +10,7 @@ import { adminDocuments } from './routes/admin-documents';
 import { adminCommissions } from './routes/admin-commissions';
 import { adminPartners } from './routes/admin-partners';
 import { adminReports, adminStatements } from './routes/admin-reports';
-import { adminSettings, adminStaff } from './routes/admin-settings';
+import { adminLicenceTypes, adminSettings, adminStaff } from './routes/admin-settings';
 import { partnerView } from './routes/partner-view';
 import { type DocStorage, SupabaseStorage, lazyStorage } from './storage';
 import { SupabaseRepo } from './supabase-repo';
@@ -40,6 +40,7 @@ export function createApp(deps: { makeRepo?: (env: Env) => Repo; makeStorage?: (
   app.route('/api/admin/commissions', adminCommissions(deps.jwks));
   app.route('/api/admin/settings', adminSettings(deps.jwks));
   app.route('/api/admin/staff', adminStaff(deps.jwks));
+  app.route('/api/admin/licence-types', adminLicenceTypes(deps.jwks));
   app.route('/api/admin/reports', adminReports(deps.jwks));
   app.route('/api/admin/statements', adminStatements(deps.jwks));
 

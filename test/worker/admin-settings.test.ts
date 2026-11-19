@@ -252,3 +252,21 @@ describe('R34 and extras', () => {
     expect((await repo.getStaff('two@tohsign.com'))!.role).toBe('admin');
   });
 });
+
+describe('GET /api/admin/licence-types', () => {
+  it('needs a login but any staff may read it', async () => {
+    const { req, json } = await setupAdmin();
+    expect((await req(null, 'GET', '/api/admin/licence-types')).status).toBe(401);
+    const res = await req(clerk, 'GET', '/api/admin/licence-types');
+    expect(res.status).toBe(200);
+    const body = await json(res);
+    expect(Object.keys(body)).toEqual(['licenceTypes']);
+    expect(body.licenceTypes).toContain('营业执照');
+  });
+
+  it('returns only the list, never the commission rules', async () => {
+    const { req } = await setupAdmin();
+    const text = await (await req(clerk, 'GET', '/api/admin/licence-types')).text();
+    expect(text).not.toContain('commissionRules');
+  });
+});
