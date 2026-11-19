@@ -47,7 +47,7 @@ function caseCard(c: PartnerViewCase): string {
   const missing = c.missingDocs && !cancelled
     ? `<p class="missing">需补文件 Missing documents · ${esc(c.missingDocs)}</p>`
     : '';
-  const amount = c.amount === null ? '—' : rm(c.amount);
+  const amount = c.amount === null ? '–' : rm(c.amount);
   return `<article class="case${cancelled ? ' cx' : ''}">
 <div class="hd"><b>${esc(c.id)}</b><span>递交 ${esc(c.submittedAt)}</span></div>
 <p class="client">${esc(c.clientName)}</p>

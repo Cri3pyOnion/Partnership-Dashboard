@@ -40,10 +40,10 @@ async function seeded() {
   return { repo, partner: p, token };
 }
 
-async function get(repo: Repo, path: string, init: RequestInit = {}) {
+async function get(repo: Repo, path: string, init: RequestInit = {}, env: Env = ENV) {
   const app = createApp({ makeRepo: () => repo });
   const ctx = createExecutionContext();
-  const res = await app.fetch(new Request(`https://portal.example.com${path}`, init), ENV, ctx);
+  const res = await app.fetch(new Request(`https://portal.example.com${path}`, init), env, ctx);
   await waitOnExecutionContext(ctx);
   return res;
 }
@@ -97,7 +97,7 @@ describe('GET /p/:token', () => {
     const { repo, partner, token } = await seeded();
     const res = await get(repo, `/p/${token}`, { cf: { country: 'MY' } } as RequestInit);
     expect(res.status).toBe(200);
-    expectSecurityHeaders(res, 'private, max-age=60');
+    expectSecurityHeaders(res, 'no-store');
     const html = await res.text();
     expect(html).toContain('Kedai Kopi Ah Seng');
     expect(html).toContain('更新于');
@@ -164,6 +164,104 @@ describe('GET /p/:token', () => {
     const { repo, token } = await seeded();
     const res = await get(repo, `/p/${token}`, { method: 'HEAD' });
     expect(res.status).toBe(200);
+  });
+});
+
+/** A KV namespace whose chosen methods throw; others go to the real one. */
+function brokenKV(fail: Array<'get' | 'put' | 'delete'>): KVNamespace {
+  return new Proxy(ENV.VIEWS, {
+    get(target, prop) {
+      if ((fail as string[]).includes(String(prop))) return async () => { throw new Error(`kv ${String(prop)} down`); };
+      const v = Reflect.get(target, prop);
+      return typeof v === 'function' ? v.bind(target) : v;
+    },
+  });
+}
+
+const kvKey = async (token: string) => `view:${await hashToken(token)}`;
+
+describe('best-effort KV and unexpected errors (R22)', () => {
+  it('a KV get failure falls through to a rebuild', async () => {
+    const { repo, token } = await seeded();
+    const res = await get(repo, `/p/${token}`, {}, { ...ENV, VIEWS: brokenKV(['get']) });
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain('Kedai Kopi Ah Seng');
+  });
+
+  it('a KV put failure still returns the page', async () => {
+    const { repo, token } = await seeded();
+    const res = await get(repo, `/p/${token}`, {}, { ...ENV, VIEWS: brokenKV(['put']) });
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain('Kedai Kopi Ah Seng');
+    expect(await ENV.VIEWS.get(await kvKey(token))).toBeNull();
+  });
+
+  it('a malformed KV value falls through to a rebuild', async () => {
+    const { repo, token } = await seeded();
+    await ENV.VIEWS.put(await kvKey(token), JSON.stringify({ html: 42, partnerId: 'TSP0001' }));
+    const res = await get(repo, `/p/${token}`);
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain('Kedai Kopi Ah Seng');
+    await ENV.VIEWS.put(await kvKey(token), 'not json');
+    expect((await get(repo, `/p/${token}`)).status).toBe(200);
+  });
+
+  it('an unexpected (non-RepoError) error is the 503 page with the security headers', async () => {
+    const { repo, token } = await seeded();
+    repo.getPartnerByToken = async () => { throw new TypeError('boom'); };
+    const res = await get(repo, `/p/${token}`);
+    expect(res.status).toBe(503);
+    expect(await res.text()).toContain('暂时无法加载，请稍后再试');
+    expectSecurityHeaders(res, 'no-store');
+  });
+});
+
+describe('put-then-verify (R20)', () => {
+  /** Resets the partner's link (new token + drop) the first time the build lists cases. */
+  function resetDuringBuild(repo: FakeRepo, partnerId: string, old: string): { fresh: string } {
+    const fresh = newViewToken();
+    const real = repo.listCases.bind(repo);
+    let done = false;
+    repo.listCases = async (f) => {
+      if (!done) {
+        done = true;
+        await repo.updatePartner(partnerId, { viewToken: fresh }, 't');
+        await dropPartnerView(ENV, old);
+      }
+      return real(f);
+    };
+    return { fresh };
+  }
+
+  it('a reset between read and put on a miss leaves no old key and the old link 404s', async () => {
+    const { repo, partner, token } = await seeded();
+    const { fresh } = resetDuringBuild(repo, partner.id, token);
+    await getPartnerView(ENV, repo, token);
+    expect(await ENV.VIEWS.get(await kvKey(token))).toBeNull();
+    expect((await get(repo, `/p/${token}`)).status).toBe(404);
+    expect((await get(repo, `/p/${fresh}`)).status).toBe(200);
+  });
+
+  it('a reset during refreshPartnerView leaves no old key', async () => {
+    const { repo, partner, token } = await seeded();
+    resetDuringBuild(repo, partner.id, token);
+    await refreshPartnerView(ENV, repo, partner.id);
+    expect(await ENV.VIEWS.get(await kvKey(token))).toBeNull();
+    expect((await get(repo, `/p/${token}`)).status).toBe(404);
+  });
+
+  it('a failed re-read deletes the key to be safe', async () => {
+    const { repo, token } = await seeded();
+    repo.getPartner = async () => { throw new Error('re-read down'); };
+    const v = await getPartnerView(ENV, repo, token);
+    expect(v?.html).toContain('Kedai Kopi Ah Seng');
+    expect(await ENV.VIEWS.get(await kvKey(token))).toBeNull();
+  });
+
+  it('keeps the key when the token is unchanged', async () => {
+    const { repo, token } = await seeded();
+    await getPartnerView(ENV, repo, token);
+    expect(await ENV.VIEWS.get(await kvKey(token))).not.toBeNull();
   });
 });
 

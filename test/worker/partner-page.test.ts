@@ -54,6 +54,12 @@ describe('renderPartnerPage', () => {
     expect(page('C1', '')).not.toContain('wa.me');
   });
 
+  it('shows an en dash for a missing amount', () => {
+    const html = renderPartnerPage(buildPartnerView(demoPartner(), [demoCases()[0]], [], ''), '2026-11-19 14:05');
+    expect(html).toContain('<span class="amt">–</span>');
+    expect(html).not.toContain('—');
+  });
+
   it('shows 已取消 for a cancelled case', () => {
     const cases = [{ ...demoCases()[0], cancelled: true }];
     const html = renderPartnerPage(buildPartnerView(demoPartner(), cases, [], ''), '2026-11-19 14:05');

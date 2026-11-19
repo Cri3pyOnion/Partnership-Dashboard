@@ -3,7 +3,6 @@ import { Hono } from 'hono';
 import type { Context } from 'hono';
 import type { AppEnv } from '../env';
 import { renderInvalidLink, renderUnavailable } from '../partner-page';
-import { RepoError } from '../repo';
 import { getPartnerView } from '../view-cache';
 
 const SECURITY_HEADERS: Record<string, string> = {
@@ -37,11 +36,11 @@ partnerView.get('/p/:token', async (c) => {
   let view: Awaited<ReturnType<typeof getPartnerView>>;
   try {
     view = await getPartnerView(c.env, c.var.repo, c.req.param('token'));
-  } catch (e) {
-    if (e instanceof RepoError) return page(renderUnavailable(), 503, 'no-store');
-    throw e;
+  } catch {
+    // RepoError with no snapshot (R19), or anything unexpected (R22): the same plain 503 page.
+    return page(renderUnavailable(), 503, 'no-store');
   }
   if (!view) return page(renderInvalidLink(), 404, 'no-store');
   logView(c, view.partnerId);
-  return page(view.html, 200, 'private, max-age=60');
+  return page(view.html, 200, 'no-store'); // R21: never cache, so a reset link dies at once
 });

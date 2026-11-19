@@ -25,8 +25,11 @@ export interface PartnerView {
   whatsapp: string;
 }
 
-const PENDING: Record<PartnerCode, CommissionStatus[]> = { A1: ['待处理', '可发放'], C1: ['待处理', '可发放'], B1: ['待付发票'] };
+// One status-based bucket list for every code, so a partner whose code changed keeps old rows counted.
+const PENDING: CommissionStatus[] = ['待处理', '可发放', '待付发票'];
 const PAID: CommissionStatus[] = ['已支付', '已结清'];
+
+const amountLabel = (code: PartnerCode): string => (code === 'B1' ? "应付 Toh's Sign" : '你的佣金');
 
 /** 'YYYY-MM' of a date or timestamp, in Asia/Kuala_Lumpur. */
 function klMonth(s: string): string {
@@ -71,13 +74,13 @@ export function buildPartnerView(p: Partner, cases: Case[], comms: Commission[],
       if (c.step === 5) tiles.done++;
       else tiles.active++;
     }
-    if (amount !== null) {
-      if (PENDING[p.code].includes(status)) tiles.pending = add(tiles.pending, amount);
-      else if (PAID.includes(status)) tiles.paid = add(tiles.paid, amount);
-      if (!c.cancelled) {
-        const m = klMonth(c.submittedAt);
-        monthTotals.set(m, add(monthTotals.get(m) ?? 0, amount));
-      }
+    // Money (tiles and monthly totals alike) counts by commission status, cancelled cases included:
+    // the Commission row is the source of truth (a cancelled case's row is normally RM 0).
+    if (amount !== null && (PENDING.includes(status) || PAID.includes(status))) {
+      if (PENDING.includes(status)) tiles.pending = add(tiles.pending, amount);
+      else tiles.paid = add(tiles.paid, amount);
+      const m = klMonth(c.submittedAt);
+      monthTotals.set(m, add(monthTotals.get(m) ?? 0, amount));
     }
 
     return {
@@ -88,7 +91,8 @@ export function buildPartnerView(p: Partner, cases: Case[], comms: Commission[],
       step: c.cancelled ? 'cancelled' : c.step,
       missingDocs: c.missingDocs,
       amount,
-      amountLabel: b1 ? "应付 Toh's Sign" : '你的佣金',
+      // The row's own code decides the label; the partner's current code only for the no-row default.
+      amountLabel: amountLabel(cm ? cm.code : p.code),
       commissionStatus: status,
     };
   });
