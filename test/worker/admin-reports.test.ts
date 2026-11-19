@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DB_DOWN, clerk, setupAdmin } from './admin-helper';
+import { DB_DOWN, admin, clerk, setupAdmin } from './admin-helper';
 
 const newCase = (partnerId: string, over: Record<string, unknown> = {}) => ({
   partnerId, clientName: '李先生', licenceType: '营业执照', price: 1800, ...over,
@@ -115,8 +115,20 @@ describe('mixed commission codes (a partner whose code changed)', () => {
     const s = await json(await req(clerk, 'GET', `/api/admin/statements/${a.id}/2026-11`));
     expect(s.lines.find((l: any) => l.caseId === a1.id).code).toBe('A1');
     expect(s.lines.find((l: any) => l.caseId === b.id).code).toBe('B1');
-    expect(s.totalCommission).toBe(250);
-    expect(s.totalB1).toBe(800);
+    expect(s.totals).toEqual({ commissionPaid: 0, commissionPending: 250, b1Settled: 0, b1Owed: 800 });
+  });
+
+  it('statement totals split by status: 已支付 vs 待发, 已结清 vs 待付', async () => {
+    const { req, a, b, a1, json } = await mixed();
+    await req(clerk, 'PATCH', `/api/admin/cases/${a1.id}`, { clientPaid: true });
+    expect((await req(admin, 'POST', `/api/admin/commissions/${a1.id}/mark-paid`, { expectedAmount: 150 })).status).toBe(200);
+    const settledCase = await json(await req(clerk, 'POST', '/api/admin/cases', newCase(a.id, { submittedAt: '2026-11-16', price: 2000 })));
+    await req(clerk, 'PATCH', `/api/admin/cases/${settledCase.id}`, { clientPaid: true }); // B1 1600 已结清
+    const s = await json(await req(clerk, 'GET', `/api/admin/statements/${a.id}/2026-11`));
+    expect(s.totals).toEqual({ commissionPaid: 150, commissionPending: 100, b1Settled: 1600, b1Owed: 800 });
+    expect(s.lines.find((l: any) => l.caseId === b.id)).toMatchObject({ status: '待付发票', cancelled: false });
+    expect(s).not.toHaveProperty('totalCommission');
+    expect(s).not.toHaveProperty('totalB1');
   });
 
   it('a preview line uses the partner code', async () => {
@@ -141,17 +153,17 @@ describe('GET /api/admin/statements/:partnerId/:month', () => {
     expect(s.lines.map((l: any) => l.caseId)).toEqual([a1.id, a2.id, a3.id]);
     expect(s.lines[0]).toEqual({
       caseId: a1.id, clientName: 'A1客户', licence: '营业执照', submittedAt: '2026-11-03',
-      amount: 150, basis: expect.any(String), status: '待处理', code: 'A1',
+      amount: 150, basis: expect.any(String), status: '待处理', code: 'A1', cancelled: false,
     });
-    expect(s.lines[2].amount).toBe(0);
-    expect(s.totalCommission).toBe(250);
-    expect(s.totalB1).toBe(0);
+    expect(s.lines[2]).toMatchObject({ amount: 0, cancelled: true });
+    expect(s.totals).toEqual({ commissionPaid: 0, commissionPending: 250, b1Settled: 0, b1Owed: 0 });
   });
 
   it('an empty month gives no lines and total 0; unknown partner 404; bad month 400', async () => {
     const { req, a, idle, json } = await seeded();
-    expect(await json(await req(clerk, 'GET', `/api/admin/statements/${idle.id}/2026-11`))).toMatchObject({ lines: [], totalCommission: 0, totalB1: 0 });
-    expect(await json(await req(clerk, 'GET', `/api/admin/statements/${a.id}/2026-09`))).toMatchObject({ lines: [], totalCommission: 0, totalB1: 0 });
+    const zero = { commissionPaid: 0, commissionPending: 0, b1Settled: 0, b1Owed: 0 };
+    expect(await json(await req(clerk, 'GET', `/api/admin/statements/${idle.id}/2026-11`))).toMatchObject({ lines: [], totals: zero });
+    expect(await json(await req(clerk, 'GET', `/api/admin/statements/${a.id}/2026-09`))).toMatchObject({ lines: [], totals: zero });
     const nf = await req(clerk, 'GET', '/api/admin/statements/TSP9999/2026-11');
     expect(nf.status).toBe(404);
     expect(await json(nf)).toEqual({ error: '找不到伙伴' });
@@ -167,7 +179,7 @@ describe('GET /api/admin/statements/:partnerId/:month', () => {
     const s = await json(await req(clerk, 'GET', `/api/admin/statements/${a.id}/2026-11`));
     expect(s.lines.find((l: any) => l.caseId === extra.id)).toMatchObject({ amount: 150, status: '待处理', pending: true, code: 'A1' });
     expect(s.lines.filter((l: any) => l.pending)).toHaveLength(1);
-    expect(s.totalCommission).toBe(400);
+    expect(s.totals.commissionPending).toBe(400);
     expect(await repo.getCommission(extra.id)).toBeNull();
   });
 

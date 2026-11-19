@@ -270,14 +270,19 @@ export function createStaffMock(partners: Partner[], cases: Case[]) {
         .filter((c) => c.partnerId === p.id && monthOf(c) === stm[2] && commissions.has(c.id))
         .map((c) => {
           const k = commissions.get(c.id)!;
-          return { caseId: c.id, clientName: c.clientName, licence: c.licenceType, submittedAt: c.submittedAt, code: k.code, amount: k.amount, basis: k.basis, status: k.status };
+          return { caseId: c.id, clientName: c.clientName, licence: c.licenceType, submittedAt: c.submittedAt, code: k.code, amount: k.amount, basis: k.basis, status: k.status, cancelled: c.cancelled };
         });
+      const sum = (pick: (l: (typeof lines)[number]) => boolean) => round2(lines.filter(pick).reduce((a, l) => a + l.amount, 0));
       return json(200, {
         partner: { id: p.id, name: p.name, company: p.company, code: p.code },
         month: stm[2],
         lines,
-        totalCommission: round2(lines.filter((l) => l.code !== 'B1').reduce((a, l) => a + l.amount, 0)),
-        totalB1: round2(lines.filter((l) => l.code === 'B1').reduce((a, l) => a + l.amount, 0)),
+        totals: {
+          commissionPaid: sum((l) => l.code !== 'B1' && l.status === '已支付'),
+          commissionPending: sum((l) => l.code !== 'B1' && (l.status === '待处理' || l.status === '可发放')),
+          b1Settled: sum((l) => l.code === 'B1' && l.status === '已结清'),
+          b1Owed: sum((l) => l.code === 'B1' && l.status === '待付发票'),
+        },
       });
     }
 

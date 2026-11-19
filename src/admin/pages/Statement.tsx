@@ -16,6 +16,7 @@ interface Line {
   code: PartnerCode;
   basis: string;
   status: string;
+  cancelled: boolean;
   pending?: true;
 }
 
@@ -23,8 +24,8 @@ interface Data {
   partner: { id: string; name: string; company: string | null; code: PartnerCode };
   month: string;
   lines: Line[];
-  totalCommission: number;
-  totalB1: number;
+  /** A1/C1 paid and still due; B1 settled and still owed. Never summed together. */
+  totals: { commissionPaid: number; commissionPending: number; b1Settled: number; b1Owed: number };
 }
 
 // The menu, the buttons and the page padding disappear on paper; the table fills the page.
@@ -64,7 +65,7 @@ export function Statement() {
     );
   }
 
-  const { partner, lines } = data;
+  const { partner, lines, totals } = data;
   // Each line is labelled by its own commission code, which was frozen when it was calculated.
   const hasB1 = lines.some((l) => l.code === 'B1');
   const hasPaid = lines.some((l) => l.code !== 'B1');
@@ -104,13 +105,14 @@ export function Statement() {
               <th>类型</th>
               <th>提交日期</th>
               <th>依据</th>
+              <th>状态</th>
               <th className="num">金额</th>
             </tr>
           </thead>
           <tbody>
             {lines.length === 0 && (
               <tr>
-                <td colSpan={6} className="muted">
+                <td colSpan={7} className="muted">
                   这个月没有案件
                 </td>
               </tr>
@@ -122,6 +124,10 @@ export function Statement() {
                 <td>{l.licence}</td>
                 <td>{klDate(l.submittedAt)}</td>
                 <td>{l.basis}</td>
+                <td>
+                  {l.status}
+                  {l.cancelled && <span className="muted"> · 已取消</span>}
+                </td>
                 <td className="num">
                   <Amount amount={l.amount} code={l.code} pending={l.pending} />
                 </td>
@@ -130,20 +136,36 @@ export function Statement() {
           </tbody>
           <tfoot>
             {(hasPaid || !hasB1) && (
-              <tr>
-                <th colSpan={5}>应付伙伴佣金 Total payable to partner</th>
-                <th className="num" data-testid="total-commission">
-                  {rm(data.totalCommission)}
-                </th>
-              </tr>
+              <>
+                <tr>
+                  <th colSpan={6}>佣金 已支付 Paid to partner</th>
+                  <th className="num" data-testid="total-commission-paid">
+                    {rm(totals.commissionPaid)}
+                  </th>
+                </tr>
+                <tr>
+                  <th colSpan={6}>佣金 待发 Pending (待处理 + 可发放)</th>
+                  <th className="num" data-testid="total-commission-pending">
+                    {rm(totals.commissionPending)}
+                  </th>
+                </tr>
+              </>
             )}
             {hasB1 && (
-              <tr>
-                <th colSpan={5}>{`伙伴应付 Toh's Sign`}</th>
-                <th className="num" data-testid="total-b1">
-                  {rm(data.totalB1)}
-                </th>
-              </tr>
+              <>
+                <tr>
+                  <th colSpan={6}>{`伙伴应付 Toh's Sign 已结清 Settled`}</th>
+                  <th className="num" data-testid="total-b1-settled">
+                    {rm(totals.b1Settled)}
+                  </th>
+                </tr>
+                <tr>
+                  <th colSpan={6}>{`伙伴应付 Toh's Sign 待付 Owed (待付发票)`}</th>
+                  <th className="num" data-testid="total-b1-owed">
+                    {rm(totals.b1Owed)}
+                  </th>
+                </tr>
+              </>
             )}
           </tfoot>
         </table>

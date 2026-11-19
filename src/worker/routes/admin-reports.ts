@@ -89,22 +89,34 @@ export function adminStatements(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
         if (cm) commOf.set(x.id, { code: partner.code, amount: cm.amount, basis: cm.basis, status: cm.status, pending: true });
       }
     }
-    const lines = [];
+    interface Line {
+      caseId: string; clientName: string; licence: string; submittedAt: string;
+      code: string; amount: number; basis: string; status: string; cancelled: boolean; pending?: true;
+    }
+    const lines: Line[] = [];
     for (const x of [...cases].sort((a, b) => a.submittedAt.localeCompare(b.submittedAt) || a.id.localeCompare(b.id))) {
       const cm = commOf.get(x.id);
       if (!cm) continue;
       lines.push({
         caseId: x.id, clientName: x.clientName, licence: x.licenceType, submittedAt: x.submittedAt,
-        code: cm.code, amount: cm.amount, basis: cm.basis, status: cm.status, ...(cm.pending ? { pending: true } : {}),
+        code: cm.code, amount: cm.amount, basis: cm.basis, status: cm.status, cancelled: x.cancelled,
+        ...(cm.pending ? { pending: true } : {}),
       });
     }
+    // A1/C1 amounts are paid to the partner; B1 amounts are owed by the partner. Never one sum, and
+    // money already paid or settled is never added to money still due.
+    const sum = (pick: (l: Line) => boolean) => round2(lines.filter(pick).reduce((s, l) => s + l.amount, 0));
+    const isB1 = (l: Line) => l.code === 'B1';
     return c.json({
       partner: { id: partner.id, name: partner.name, company: partner.company, code: partner.code },
       month,
       lines,
-      // A1/C1 amounts are paid to the partner; B1 amounts are owed by the partner. Never one sum.
-      totalCommission: round2(lines.filter((l) => l.code !== 'B1').reduce((sum, l) => sum + l.amount, 0)),
-      totalB1: round2(lines.filter((l) => l.code === 'B1').reduce((sum, l) => sum + l.amount, 0)),
+      totals: {
+        commissionPaid: sum((l) => !isB1(l) && l.status === '已支付'),
+        commissionPending: sum((l) => !isB1(l) && (l.status === '待处理' || l.status === '可发放')),
+        b1Settled: sum((l) => isB1(l) && l.status === '已结清'),
+        b1Owed: sum((l) => isB1(l) && l.status === '待付发票'),
+      },
     });
   });
 
