@@ -132,11 +132,45 @@ describe('PartnerDetail', () => {
     const user = userEvent.setup();
     get.mockResolvedValue(detail());
     patch.mockRejectedValue(Object.assign(new Error('x'), { error: '没有权限' }));
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
     renderDetail(staff);
     await user.click(await screen.findByRole('button', { name: '设为不活跃' }));
     const banner = await screen.findByRole('alert');
     expect(banner.textContent).toContain('没有权限');
     await user.click(screen.getByRole('button', { name: '关闭' }));
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('asks before 设为不活跃 and does nothing when cancelled', async () => {
+    const user = userEvent.setup();
+    get.mockResolvedValue(detail());
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    renderDetail(staff);
+    await user.click(await screen.findByRole('button', { name: '设为不活跃' }));
+    expect(confirm).toHaveBeenCalledWith('确定设为不活跃？');
+    expect(patch).not.toHaveBeenCalled();
+  });
+
+  it('deactivates once confirmed', async () => {
+    const user = userEvent.setup();
+    get.mockResolvedValue(detail());
+    patch.mockResolvedValue(demoPartner({ status: '不活跃' }));
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    renderDetail(staff);
+    await user.click(await screen.findByRole('button', { name: '设为不活跃' }));
+    await waitFor(() => expect(patch).toHaveBeenCalledWith('/api/admin/partners/TSP0003', { status: '不活跃' }));
+  });
+
+  it('clears the copied timer on unmount', async () => {
+    const user = userEvent.setup();
+    get.mockResolvedValue(detail());
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText: vi.fn().mockResolvedValue(undefined) }, configurable: true });
+    const clear = vi.spyOn(globalThis, 'clearTimeout');
+    const r = renderDetail(staff);
+    await user.click(await screen.findByRole('button', { name: '复制链接' }));
+    await screen.findByText(/已复制/);
+    clear.mockClear();
+    r.unmount();
+    expect(clear).toHaveBeenCalled();
   });
 });

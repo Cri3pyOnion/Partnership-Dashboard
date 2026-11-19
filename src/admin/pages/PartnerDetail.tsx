@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { CASE_STEPS, STEP_CANCELLED } from '../../shared/status';
 import type { Case, Partner, PartnerCode } from '../../shared/types';
@@ -36,6 +36,9 @@ export function PartnerDetail() {
   const [code, setCode] = useState<PartnerCode | null>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(() => () => clearTimeout(copiedTimer.current), []);
 
   const load = useCallback(async () => {
     try {
@@ -104,18 +107,21 @@ export function PartnerDetail() {
       await load();
     });
 
-  const deactivate = () =>
-    run(async () => {
+  const deactivate = () => {
+    if (!window.confirm('确定设为不活跃？')) return;
+    return run(async () => {
       await api.patch(base, { status: '不活跃' });
       await load();
     });
+  };
 
   const copy = async () => {
     if (!link) return;
     try {
       await navigator.clipboard.writeText(link);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      clearTimeout(copiedTimer.current);
+      copiedTimer.current = setTimeout(() => setCopied(false), 2000);
     } catch {
       setError('无法复制，请手动选取链接');
     }
