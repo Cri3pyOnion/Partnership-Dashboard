@@ -9,13 +9,15 @@
     "dev": "wrangler dev",
     "build": "vite build --outDir dist/admin",
     "test": "vitest run",
-    "deploy": "npm run build && wrangler deploy"
+    "deploy": "npm run build && wrangler deploy",
+    "preview:partner": "tsx scripts/preview-partner-page.ts"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "0.23.0",
     "@cloudflare/workers-types": "5.20261104.1",
     "@electric-sql/pglite": "0.5.15",
     "@types/node": "22.20.4",
+    "tsx": "4.23.15",
     "typescript": "7.0.2",
     "vitest": "4.1.12",
     "wrangler": "4.157.0"

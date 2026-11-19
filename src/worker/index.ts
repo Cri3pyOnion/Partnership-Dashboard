@@ -4,6 +4,7 @@ import { requireStaff } from './access';
 import type { AppEnv, Env } from './env';
 import { lazyRepo } from './lazy-repo';
 import type { Repo } from './repo';
+import { partnerView } from './routes/partner-view';
 import { SupabaseRepo } from './supabase-repo';
 
 export function createApp(deps: { makeRepo?: (env: Env) => Repo; jwks?: JWTVerifyGetKey } = {}): Hono<AppEnv> {
@@ -14,6 +15,8 @@ export function createApp(deps: { makeRepo?: (env: Env) => Repo; jwks?: JWTVerif
     c.set('repo', lazyRepo(() => makeRepo(c.env)));
     await next();
   });
+
+  app.route('/', partnerView);
 
   app.get('/api/admin/me', requireStaff({ jwks: deps.jwks }), (c) => {
     const { email, name, role, team } = c.var.staff;
