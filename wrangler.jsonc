@@ -1,0 +1,18 @@
+{
+  "name": "partner-portal",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "dist/admin",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/p/*", "/api/*"]
+  },
+  "kv_namespaces": [{ "binding": "VIEWS", "id": "REPLACE_WITH_KV_NAMESPACE_ID" }],
+  "vars": {
+    "ACCESS_TEAM_DOMAIN": "",
+    "ACCESS_AUD": "",
+    "SUPABASE_URL": "",
+    "MARKETING_WHATSAPP": ""
+  }
+  // Secret (set with `wrangler secret put`, never committed): SUPABASE_SERVICE_ROLE_KEY
+}
