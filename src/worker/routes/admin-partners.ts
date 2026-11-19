@@ -221,9 +221,16 @@ export function adminPartners(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
     const id = c.req.param('id');
     const p = await mustGet(repo, id);
     const old = p.viewToken;
-    if (!old) throw new HttpError(400, '伙伴尚未批准');
+    if (!old && p.status !== '活跃') throw new HttpError(400, '伙伴尚未批准');
     const token = newViewToken();
     const link = linkFor(c.env, token);
+    if (!old) {
+      // An 活跃 partner with no link yet (seeded or migrated): issue the first one. No old page to drop.
+      await repo.updatePartner(id, { viewToken: token }, c.var.staff.email);
+      await refreshOrDrop(c.env, repo, id, token);
+      await auditQuietly(repo, c.var.staff.email, 'partner.reset_link', 'partner', id, { issuedLink: true });
+      return c.json({ link });
+    }
     // R26: kill the original page first. If that fails nothing is committed, so a retry targets the same token.
     if (!(await dropWithRetry(c.env, old))) return c.json({ error: '旧链接清除失败，请再试一次' }, 503);
     await repo.updatePartner(id, { viewToken: token }, c.var.staff.email);

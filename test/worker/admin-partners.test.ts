@@ -371,6 +371,20 @@ describe('reset-link', () => {
     expect(JSON.stringify(row)).not.toContain(oldToken);
   });
 
+  it('an 活跃 partner with no link gets a first one: committed, page built, audited', async () => {
+    const { req, app, repo } = await setup();
+    const p = await repo.createPartner(partnerInput(), 't');
+    await repo.updatePartner(p.id, { status: '活跃' }, 't'); // e.g. a seeded or migrated partner
+    const res = await req(clerk, 'POST', `/${p.id}/reset-link`);
+    expect(res.status).toBe(200);
+    const token = LINK_RE.exec(((await res.json()) as any).link)![1];
+    expect((await repo.getPartner(p.id))!.viewToken).toBe(token);
+    expect(await ENV.VIEWS.get(`view:${await hashToken(token)}`)).not.toBeNull();
+    expect((await app.request(`/p/${token}`, {}, ENV)).status).toBe(200);
+    expect(repo.auditLog.at(-1)).toMatchObject({ action: 'partner.reset_link', id: p.id });
+    expect(JSON.stringify(repo.auditLog.at(-1))).not.toContain(token);
+  });
+
   it('400 for a 待审核 partner', async () => {
     const { req, repo } = await setup();
     const p = await repo.createPartner(partnerInput(), 't');
@@ -397,40 +411,60 @@ describe('reset-link', () => {
 
   it('drops the old page again after the commit, removing a rebuild that slipped in between', async () => {
     const { req, app, repo, p, oldToken } = await approved();
+    const oldKey = `view:${await hashToken(oldToken)}`;
     let calls = 0;
+    let rebuiltStatus: number | null = null;
+    let rebuiltStored = false;
     const env = kvWithDelete(async (k, real) => {
       await real.delete(k);
       if (++calls === 1) {
-        // A viewer rebuilds the old page after the first drop, before the commit.
-        expect((await app.request(`/p/${oldToken}`, {}, ENV)).status).toBe(200);
+        // A viewer rebuilds the old page after the first drop, before the commit. Recorded here,
+        // asserted below: an expect() in here would be swallowed by the route's retry loop.
+        rebuiltStatus = (await app.request(`/p/${oldToken}`, {}, ENV)).status;
+        rebuiltStored = (await real.get(oldKey)) !== null;
       }
     });
     const res = await req(clerk, 'POST', `/${p.id}/reset-link`, undefined, env);
     expect(res.status).toBe(200);
+    expect(rebuiltStatus).toBe(200);
+    expect(rebuiltStored).toBe(true); // the race really put the old page back
     expect(calls).toBe(2);
     expect((await repo.getPartner(p.id))!.viewToken).not.toBe(oldToken);
+    expect(await ENV.VIEWS.get(oldKey)).toBeNull();
     expect((await app.request(`/p/${oldToken}`, {}, ENV)).status).toBe(404);
   });
 
-  it('a failing second drop never fails the response', async () => {
-    const { req, p } = await approved();
+  it('a failing second drop never fails the response: the new link is committed and the drop was retried', async () => {
+    const { req, app, repo, p, oldToken } = await approved();
     let calls = 0;
     const env = kvWithDelete(async (k, real) => {
       if (++calls > 1) throw new Error('kv down');
       await real.delete(k);
     });
-    expect((await req(clerk, 'POST', `/${p.id}/reset-link`, undefined, env)).status).toBe(200);
+    const res = await req(clerk, 'POST', `/${p.id}/reset-link`, undefined, env);
+    expect(res.status).toBe(200);
+    const newToken = LINK_RE.exec(((await res.json()) as any).link)![1];
+    expect(calls).toBe(4); // first drop, then the after-commit drop tried 3 times
+    expect((await repo.getPartner(p.id))!.viewToken).toBe(newToken);
+    expect((await app.request(`/p/${oldToken}`, {}, ENV)).status).toBe(404);
+    expect((await app.request(`/p/${newToken}`, {}, ENV)).status).toBe(200);
   });
 
-  it('succeeds when the drop works on the third try', async () => {
-    const { req, p } = await approved();
+  it('succeeds when the drop works on the third try, and that drop happens before the commit', async () => {
+    const { req, app, repo, p, oldToken } = await approved();
     let drops = 0;
+    const tokenAtDrop: Array<string | null> = [];
     const env = kvWithDelete(async (k, real) => {
+      tokenAtDrop.push((await repo.getPartner(p.id))!.viewToken);
       if (++drops < 3) throw new Error('flaky');
       await real.delete(k);
     });
     expect((await req(clerk, 'POST', `/${p.id}/reset-link`, undefined, env)).status).toBe(200);
-    expect(drops).toBeGreaterThanOrEqual(3);
+    // Three tries before the commit (token still old), then the after-commit drop.
+    expect(tokenAtDrop.slice(0, 3)).toEqual([oldToken, oldToken, oldToken]);
+    expect(tokenAtDrop).toHaveLength(4);
+    expect(tokenAtDrop[3]).not.toBe(oldToken);
+    expect((await app.request(`/p/${oldToken}`, {}, ENV)).status).toBe(404);
   });
 });
 

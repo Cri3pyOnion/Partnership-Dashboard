@@ -18,6 +18,28 @@ insert into cases (id, partner_id, client_name, licence_type, council, step, mis
   ('TS-2610-020', 'TSP0003', 'Bright Tuition Centre', '营业执照', 'MBSJ', 4, null, '2026-10-02', 1500, 250, true, '2026-10-25'),
   ('TS-2609-012', 'TSP0003', 'Mega Hardware Trading', '招牌执照', 'MBPJ', 5, null, '2026-09-10', 850, 150, true, '2026-09-28');
 
+-- One commission per demo case, as the Worker would calculate it with DEFAULT_RULES
+-- (TSP0003 is C1: commission = markup; 可发放 once the client has paid, else 待处理).
+insert into commissions (case_id, code, amount, basis, status) values
+  ('TS-2611-014', 'C1', 300, '在 RM 1,800 上加价（客户支付 RM 2,100）', '待处理'),
+  ('TS-2611-009', 'C1', 150, '在 RM 900 上加价（客户支付 RM 1,050）', '待处理'),
+  ('TS-2610-031', 'C1', 400, '在 RM 2,500 上加价（客户支付 RM 2,900）', '待处理'),
+  ('TS-2610-020', 'C1', 250, '在 RM 1,500 上加价（客户支付 RM 1,750）', '可发放'),
+  ('TS-2609-012', 'C1', 150, '在 RM 850 上加价（客户支付 RM 1,000）', '可发放');
+
+-- Fixed DEV links for every 活跃 partner (43 characters, [A-Za-z0-9_-]), e.g. /p/dev-link-TSP0003-xxxxxxxxxxxxxxxxxxxxxxxxxx.
+-- These are public in the repo: never use them anywhere but the dev project.
+update partners set view_token = v.token from (values
+  ('TSP0001', 'dev-link-TSP0001-xxxxxxxxxxxxxxxxxxxxxxxxxx'),
+  ('TSP0002', 'dev-link-TSP0002-xxxxxxxxxxxxxxxxxxxxxxxxxx'),
+  ('TSP0003', 'dev-link-TSP0003-xxxxxxxxxxxxxxxxxxxxxxxxxx'),
+  ('TSP0004', 'dev-link-TSP0004-xxxxxxxxxxxxxxxxxxxxxxxxxx'),
+  ('TSP0005', 'dev-link-TSP0005-xxxxxxxxxxxxxxxxxxxxxxxxxx'),
+  ('TSP0007', 'dev-link-TSP0007-xxxxxxxxxxxxxxxxxxxxxxxxxx'),
+  ('TSP0008', 'dev-link-TSP0008-xxxxxxxxxxxxxxxxxxxxxxxxxx')
+) as v(id, token)
+where partners.id = v.id and partners.status = '活跃';
+
 -- Explicit ids were used above, so move the counters past them.
 select setval('partner_seq', 10);
 insert into case_counters (yymm, n) values ('2609', 12), ('2610', 31), ('2611', 14)

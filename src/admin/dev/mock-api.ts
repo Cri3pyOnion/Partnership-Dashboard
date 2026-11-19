@@ -101,6 +101,8 @@ export function installMockApi(): void {
         return json(200, { link: `${location.origin}/p/${p.viewToken}` });
       }
       if (m[2] === '/reset-link' && method === 'POST') {
+        // Mirrors the Worker: an 活跃 partner without a link gets a first one; 待审核 is refused.
+        if (!p.viewToken && p.status !== '活跃') return json(400, { error: '伙伴尚未批准' });
         p.viewToken = token();
         return json(200, { link: `${location.origin}/p/${p.viewToken}` });
       }

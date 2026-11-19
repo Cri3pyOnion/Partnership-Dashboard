@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { DEFAULT_RULES } from '../../src/shared/commission';
+import { DEFAULT_RULES, calcCommission } from '../../src/shared/commission';
 
 const root = fileURLToPath(new URL('../..', import.meta.url));
 const read = (p: string) => readFileSync(resolve(root, p), 'utf8');
@@ -60,9 +60,37 @@ describe('migration + seed', () => {
     expect(await scalar(`select next_case_id('2026-11-20 10:00+08')`)).toBe('TS-2611-015');
   });
 
-  it('seeds no commissions and no staff', async () => {
-    expect(Number(await scalar('select count(*) from commissions'))).toBe(0);
+  it('seeds no staff', async () => {
     expect(Number(await scalar('select count(*) from staff'))).toBe(0);
+  });
+
+  it('seeds one commission per demo case, equal to calcCommission with DEFAULT_RULES', async () => {
+    const rows = (await db.query<Record<string, unknown>>(`
+      select c.id, c.price::float8 as price, c.markup::float8 as markup, c.client_paid, c.cancelled, p.code as partner_code,
+             m.code, m.amount::float8 as amount, m.basis, m.status, m.paid_at, m.paid_by
+      from cases c join partners p on p.id = c.partner_id left join commissions m on m.case_id = c.id order by c.id`)).rows;
+    expect(rows).toHaveLength(5);
+    for (const r of rows) {
+      const want = calcCommission(
+        { price: r.price as number, markup: r.markup as number, clientPaid: r.client_paid as boolean, cancelled: r.cancelled as boolean },
+        r.partner_code as 'C1', DEFAULT_RULES,
+      );
+      expect(r, String(r.id)).toMatchObject({ code: r.partner_code, amount: want.amount, basis: want.basis, status: want.status, paid_at: null, paid_by: null });
+    }
+    expect(rows.map((r) => [r.id, r.amount, r.status])).toEqual([
+      ['TS-2609-012', 150, '可发放'], ['TS-2610-020', 250, '可发放'], ['TS-2610-031', 400, '待处理'],
+      ['TS-2611-009', 150, '待处理'], ['TS-2611-014', 300, '待处理'],
+    ]);
+  });
+
+  it('gives every 活跃 partner a fixed 43-character dev link, and no one else', async () => {
+    const rows = (await db.query<{ id: string; status: string; view_token: string | null }>('select id, status, view_token from partners order by id')).rows;
+    for (const r of rows) {
+      if (r.status === '活跃') expect(r.view_token, r.id).toMatch(/^[A-Za-z0-9_-]{43}$/);
+      else expect(r.view_token, r.id).toBeNull();
+    }
+    expect(rows.filter((r) => r.view_token).length).toBe(7);
+    expect(new Set(rows.map((r) => r.view_token).filter(Boolean)).size).toBe(7);
   });
 
   it('stores default settings equal to DEFAULT_RULES', async () => {
