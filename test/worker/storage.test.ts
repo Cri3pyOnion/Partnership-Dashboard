@@ -15,15 +15,31 @@ function make(respond: (c: Call) => Response | Promise<Response>) {
 
 describe('SupabaseStorage', () => {
   it('uploads with the key, type, length, no upsert, and an encoded path', async () => {
-    const { storage, calls } = make(() => new Response('{}', { status: 200 }));
+    let sent = '';
+    const { storage, calls } = make(async (c) => {
+      sent = await new Response(c.init.body).text();
+      return new Response('{}', { status: 200 });
+    });
     const body = new Response('abc').body!;
     await storage.put('TS-2611-001/u-a b_中.pdf', body, 'application/pdf', 3);
     expect(calls[0].url).toBe('https://x.supabase.co/storage/v1/object/case-documents/TS-2611-001/u-a%20b_%E4%B8%AD.pdf');
     expect(calls[0].init.method).toBe('POST');
-    expect(calls[0].init.body).toBe(body);
+    expect(sent).toBe('abc');
     expect(calls[0].init.headers).toMatchObject({
       Authorization: 'Bearer svc-key', apikey: 'svc-key', 'Content-Type': 'application/pdf', 'Content-Length': '3', 'x-upsert': 'false',
     });
+  });
+
+  it('pins the outbound length: the body goes through a FixedLengthStream of exactly `length` bytes', async () => {
+    const { storage, calls } = make(async (c) => {
+      await new Response(c.init.body).arrayBuffer(); // the stream errors if the byte count is not `length`
+      return new Response('{}', { status: 200 });
+    });
+    await storage.put('a/b', new Response('abc').body!, 'image/png', 3);
+    expect(calls[0].init.body).toBeInstanceOf(ReadableStream);
+    expect(calls[0].init.body).not.toBeInstanceOf(Response);
+    await expect(storage.put('a/c', new Response('abcdef').body!, 'image/png', 3)).rejects.toBeInstanceOf(StorageError);
+    await expect(storage.put('a/d', new Response('a').body!, 'image/png', 3)).rejects.toBeInstanceOf(StorageError);
   });
 
   it('turns a failed upload and a network error into StorageError', async () => {

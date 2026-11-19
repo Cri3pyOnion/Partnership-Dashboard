@@ -23,6 +23,22 @@ async function run<T>(what: string, call: PromiseLike<Result<T>>): Promise<T | n
   return res.data;
 }
 
+/** Supabase returns at most 1,000 rows per select by default. */
+export const PAGE_SIZE = 1000;
+
+/**
+ * Every row of an ordered select, read page by page with `.range(from, to)` until a short page.
+ * `page` must build a fresh query each call (a query builder runs once) with a stable order.
+ */
+export async function pageAll<T>(what: string, page: (from: number, to: number) => PromiseLike<Result<T[]>>): Promise<T[]> {
+  const out: T[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const rows = (await run<T[]>(what, page(from, from + PAGE_SIZE - 1))) ?? [];
+    out.push(...rows);
+    if (rows.length < PAGE_SIZE) return out;
+  }
+}
+
 /** Escapes a user string for an ilike pattern inside a double-quoted PostgREST filter value. */
 function ilikeValue(q: string): string {
   const like = q.replace(/\*/g, '').replace(/[\\%_]/g, (m) => `\\${m}`);
@@ -48,23 +64,26 @@ export class SupabaseRepo implements Repo {
     return r ? staffFromRow(r) : null;
   }
   async listStaff(): Promise<Staff[]> {
-    const rows = await run<Row[]>('listStaff', this.db.from('staff').select('*').order('email'));
-    return (rows ?? []).map(staffFromRow);
+    const rows = await pageAll<Row>('listStaff', (from, to) => this.db.from('staff').select('*').order('email').range(from, to));
+    return rows.map(staffFromRow);
   }
   async saveStaff(s: Staff, _by: string): Promise<void> {
     await run('saveStaff', this.db.from('staff').upsert(staffToRow(s), { onConflict: 'email' }));
   }
 
   async listPartners(f: { status?: PartnerStatus; q?: string }): Promise<Partner[]> {
-    let query = this.db.from('partners').select('*');
-    if (f.status) query = query.eq('status', f.status);
     const q = f.q?.trim();
-    if (q) {
-      const v = ilikeValue(q);
-      query = query.or(['id', 'name', 'company', 'phone'].map((c) => `${c}.ilike.${v}`).join(','));
-    }
-    const rows = await run<Row[]>('listPartners', query.order('id'));
-    return (rows ?? []).map(partnerFromRow);
+    const build = () => {
+      let query = this.db.from('partners').select('*');
+      if (f.status) query = query.eq('status', f.status);
+      if (q) {
+        const v = ilikeValue(q);
+        query = query.or(['id', 'name', 'company', 'phone'].map((c) => `${c}.ilike.${v}`).join(','));
+      }
+      return query.order('id');
+    };
+    const rows = await pageAll<Row>('listPartners', (from, to) => build().range(from, to));
+    return rows.map(partnerFromRow);
   }
   async getPartner(id: string): Promise<Partner | null> {
     const r = await run<Row>('getPartner', this.db.from('partners').select('*').eq('id', id).maybeSingle());
@@ -93,15 +112,18 @@ export class SupabaseRepo implements Repo {
   }
 
   async listCases(f: { partnerId?: string; step?: StepIndex; month?: string }): Promise<Case[]> {
-    let query = this.db.from('cases').select('*');
-    if (f.partnerId) query = query.eq('partner_id', f.partnerId);
-    if (f.step !== undefined) query = query.eq('step', f.step);
-    if (f.month) {
-      const [from, to] = monthRange(f.month);
-      query = query.gte('submitted_at', from).lt('submitted_at', to);
-    }
-    const rows = await run<Row[]>('listCases', query.order('submitted_at', { ascending: false }).order('id', { ascending: false }));
-    return (rows ?? []).map(caseFromRow);
+    const build = () => {
+      let query = this.db.from('cases').select('*');
+      if (f.partnerId) query = query.eq('partner_id', f.partnerId);
+      if (f.step !== undefined) query = query.eq('step', f.step);
+      if (f.month) {
+        const [from, to] = monthRange(f.month);
+        query = query.gte('submitted_at', from).lt('submitted_at', to);
+      }
+      return query.order('submitted_at', { ascending: false }).order('id', { ascending: false });
+    };
+    const rows = await pageAll<Row>('listCases', (from, to) => build().range(from, to));
+    return rows.map(caseFromRow);
   }
   async getCase(id: string): Promise<Case | null> {
     const r = await run<Row>('getCase', this.db.from('cases').select('*').eq('id', id).maybeSingle());
@@ -144,14 +166,17 @@ export class SupabaseRepo implements Repo {
     return r ? commissionFromRow(r) : null;
   }
   async listCommissions(f: { partnerId?: string; month?: string }): Promise<Commission[]> {
-    let query = this.db.from('commissions').select('*, cases!inner(partner_id, submitted_at)');
-    if (f.partnerId) query = query.eq('cases.partner_id', f.partnerId);
-    if (f.month) {
-      const [from, to] = monthRange(f.month);
-      query = query.gte('cases.submitted_at', from).lt('cases.submitted_at', to);
-    }
-    const rows = await run<Row[]>('listCommissions', query.order('case_id'));
-    return (rows ?? []).map(commissionFromRow);
+    const build = () => {
+      let query = this.db.from('commissions').select('*, cases!inner(partner_id, submitted_at)');
+      if (f.partnerId) query = query.eq('cases.partner_id', f.partnerId);
+      if (f.month) {
+        const [from, to] = monthRange(f.month);
+        query = query.gte('cases.submitted_at', from).lt('cases.submitted_at', to);
+      }
+      return query.order('case_id');
+    };
+    const rows = await pageAll<Row>('listCommissions', (from, to) => build().range(from, to));
+    return rows.map(commissionFromRow);
   }
   async saveCommission(c: Commission): Promise<void> {
     await run('saveCommission', this.db.from('commissions').upsert(commissionToRow(c), { onConflict: 'case_id' }));

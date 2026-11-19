@@ -34,10 +34,13 @@ export class SupabaseStorage implements DocStorage {
   async put(path: string, body: ReadableStream, contentType: string, length: number): Promise<void> {
     let res: Response;
     try {
+      // A FixedLengthStream makes the outbound request carry exactly `length` bytes (a known
+      // Content-Length rather than chunked), and fails the upload if the body is longer or shorter.
+      const pinned = body.pipeThrough(new FixedLengthStream(length));
       res = await this.fetchImpl(`${this.base}/${BUCKET}/${encodePath(path)}`, {
         method: 'POST',
         headers: { ...this.auth(), 'Content-Type': contentType, 'Content-Length': String(length), 'x-upsert': 'false' },
-        body,
+        body: pinned,
       });
     } catch (err) {
       throw new StorageError('upload failed', { cause: err });

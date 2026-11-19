@@ -9,8 +9,9 @@ const root = fileURLToPath(new URL('../..', import.meta.url));
 const read = (p: string) => readFileSync(resolve(root, p), 'utf8');
 const init = read('supabase/migrations/20261119000001_init.sql');
 const freezePaid = read('supabase/migrations/20261120000001_freeze_paid.sql');
+const bucketLimits = read('supabase/migrations/20261120000002_bucket_limits.sql');
 /** Every migration, in order. */
-const migration = [init, freezePaid].join('\n');
+const migration = [init, freezePaid, bucketLimits].join('\n');
 const seed = read('supabase/seed.sql');
 const smoke = read('supabase/tests/smoke.sql');
 
@@ -143,6 +144,25 @@ describe('20261120000001_freeze_paid: 已支付 rows never change', () => {
   it('still updates rows that are not 已支付, including marking them paid', async () => {
     await db.exec(`update commissions set status = '已支付', paid_by = 'b@x.com' where case_id = 'TS-2611-002'`);
     expect(await row('TS-2611-002')).toEqual({ amount: '100.00', status: '已支付', paid_by: 'b@x.com' });
+  });
+});
+
+describe('20261120000002_bucket_limits on a database with a storage schema', () => {
+  it('sets the 10 MB limit and the allowed types on case-documents (and is a no-op without storage)', async () => {
+    const db = new PGlite();
+    await db.exec(`create schema storage;
+      create table storage.buckets (id text primary key, name text, public boolean, file_size_limit bigint, allowed_mime_types text[]);`);
+    await db.exec(migration);
+    const r = (await db.query<{ public: boolean; file_size_limit: string; allowed_mime_types: string[] }>(
+      `select public, file_size_limit::text, allowed_mime_types from storage.buckets where id = 'case-documents'`,
+    )).rows[0];
+    expect(r).toEqual({
+      public: false,
+      file_size_limit: '10485760',
+      allowed_mime_types: ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'application/pdf'],
+    });
+    const plain = new PGlite();
+    await expect(plain.exec(migration)).resolves.toBeDefined();
   });
 });
 
