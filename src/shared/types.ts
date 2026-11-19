@@ -11,16 +11,16 @@ export interface Partner {
   name: string;
   phone: string;
   email: string;
-  tin: string;
-  company: string;
+  tin: string | null;
+  company: string | null;
   code: PartnerCode;
-  referralName: string;
+  referralName: string | null;
   filledBy: Team;
-  source: Source;
-  bankName: string;
-  bankAccount: string;
+  source: Source | null;
+  bankName: string | null;
+  bankAccount: string | null;
   status: PartnerStatus;
-  viewToken: string;
+  viewToken: string | null;
   registeredAt: string;
 }
 
@@ -28,19 +28,19 @@ export interface Case {
   id: string;
   partnerId: string;
   clientName: string;
-  clientPhone: string;
+  clientPhone: string | null;
   licenceType: string;
-  council: string;
+  council: string | null;
   step: StepIndex;
   cancelled: boolean;
-  missingDocs: string;
+  missingDocs: string | null;
   submittedAt: string;
   price: number | null;
   markup: number | null;
-  invoiceNo: string;
+  invoiceNo: string | null;
   clientPaid: boolean;
   clientPaidAt: string | null;
-  notesInternal: string;
+  notesInternal: string | null;
 }
 
 export interface CommissionRules {
@@ -62,11 +62,32 @@ export interface Commission {
 
 export interface Settings {
   commissionRules: CommissionRules;
+  licenceTypes: string[];
+  inactiveDays: number;
 }
 
 export interface Staff {
-  id: string;
   email: string;
   name: string;
-  team: Team;
+  role: 'admin' | 'staff';
+  team: Team | null;
+  active: boolean;
 }
+
+export type NewPartner = Omit<Partner, 'id' | 'status' | 'viewToken' | 'registeredAt'>;
+
+export type NewCase = Omit<Case, 'id' | 'step' | 'cancelled' | 'clientPaid' | 'clientPaidAt' | 'submittedAt'> & {
+  submittedAt?: string;
+};
+
+export interface CaseDocument {
+  id: string;
+  caseId: string;
+  storagePath: string;
+  filename: string;
+  kind: string;
+  uploadedBy: string;
+  uploadedAt: string;
+}
+
+export type NewDocument = Omit<CaseDocument, 'id' | 'uploadedBy' | 'uploadedAt'>;
