@@ -1,6 +1,6 @@
 // Commission recalculation after a case change.
 import { applyCommission, calcCommission } from '../shared/commission';
-import type { Case, Commission, CommissionRules, PartnerCode } from '../shared/types';
+import type { Case, Commission, CommissionRules, Partner, PartnerCode } from '../shared/types';
 import { refreshOrDrop } from './admin-support';
 import type { Env } from './env';
 import { NotFoundError } from './repo';
@@ -38,4 +38,43 @@ export async function recalcCase(env: Env, repo: Repo, caseId: string): Promise<
   if (next !== existing) await repo.saveCommission(next);
   await refreshOrDrop(env, repo, partner.id, partner.viewToken);
   return next;
+}
+
+/** The commission a case would have, or null when the rules reject it (markup over the cap). Never saved. */
+export function previewCommission(
+  c: Pick<Case, 'id' | 'price' | 'markup' | 'clientPaid' | 'cancelled'>,
+  partnerCode: PartnerCode,
+  rules: CommissionRules,
+): Commission | null {
+  try {
+    return nextCommission(c, c.id, partnerCode, null, rules);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Recalculate after a committed write without ever failing the response (R32). On failure the page
+ * is still rebuilt and the caller gets the preview, marked pending; the next write repairs the row.
+ */
+export async function recalcAfterCommit(
+  env: Env, repo: Repo, saved: Case, partner: Pick<Partner, 'id' | 'code' | 'viewToken'>,
+  existing: Commission | null, rules: CommissionRules,
+): Promise<{ commission: Commission; commissionPending?: true }> {
+  try {
+    return { commission: await recalcCase(env, repo, saved.id) };
+  } catch (err) {
+    console.error('recalcCase failed:', err instanceof Error ? err.message : 'unknown');
+  }
+  await refreshOrDrop(env, repo, partner.id, partner.viewToken);
+  const commission = nextCommissionSafe(saved, partner.code, existing, rules);
+  return { commission, commissionPending: true };
+}
+
+function nextCommissionSafe(c: Case, code: PartnerCode, existing: Commission | null, rules: CommissionRules): Commission {
+  try {
+    return nextCommission(c, c.id, code, existing, rules);
+  } catch {
+    return existing as Commission;
+  }
 }

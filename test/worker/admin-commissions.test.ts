@@ -121,3 +121,39 @@ describe('GET /api/admin/commissions', () => {
     expect(await json(res)).toMatchObject({ error: '月份格式不正确' });
   });
 });
+
+describe('R33: mark-paid recomputes from the current case and rules', () => {
+  it('a cancelled case whose stored row is still 可发放 is refused', async () => {
+    const { req, c, repo, json } = await payable();
+    await repo.updateCase(c.id, { cancelled: true }, 't'); // bypasses recalculation: a stale row
+    expect((await repo.getCommission(c.id))!.status).toBe('可发放');
+    const res = await req(admin, 'POST', `/api/admin/commissions/${c.id}/mark-paid`);
+    expect(res.status).toBe(400);
+    expect(await json(res)).toEqual({ error: '佣金尚未可发放' });
+    expect((await repo.getCommission(c.id))!.status).toBe('可发放');
+  });
+
+  it('a stale stored amount is replaced by the recomputed one', async () => {
+    const { req, c, repo, json } = await payable();
+    await repo.saveCommission({ ...(await repo.getCommission(c.id))!, amount: 999 });
+    const res = await req(admin, 'POST', `/api/admin/commissions/${c.id}/mark-paid`);
+    expect(res.status).toBe(200);
+    expect((await json(res)).amount).toBe(150);
+    expect(await repo.getCommission(c.id)).toMatchObject({ amount: 150, status: '已支付' });
+  });
+
+  it('a case with no commission row is paid when the recompute is 可发放', async () => {
+    const ctx = await setupAdmin();
+    const { req, repo, json } = ctx;
+    const p = await ctx.activePartner('A1');
+    const cs = await repo.createCase({
+      partnerId: p.id, clientName: 'x', clientPhone: null, licenceType: '营业执照', council: null, missingDocs: null,
+      price: 1800, markup: null, invoiceNo: null, notesInternal: null,
+    }, 't');
+    expect((await req(admin, 'POST', `/api/admin/commissions/${cs.id}/mark-paid`)).status).toBe(400);
+    await repo.updateCase(cs.id, { clientPaid: true }, 't');
+    const res = await req(admin, 'POST', `/api/admin/commissions/${cs.id}/mark-paid`);
+    expect(res.status).toBe(200);
+    expect(await json(res)).toMatchObject({ amount: 150, status: '已支付', code: 'A1' });
+  });
+});

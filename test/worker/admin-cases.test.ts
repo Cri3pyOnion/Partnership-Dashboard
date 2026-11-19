@@ -310,3 +310,66 @@ describe('GET', () => {
     expect((await req(clerk, 'GET', '/api/admin/cases/TS-0000-999')).status).toBe(404);
   });
 });
+
+describe('R32: recalc failure after the commit never fails the write', () => {
+  const failSave = (repo: any) => {
+    const orig = repo.saveCommission.bind(repo);
+    let on = true;
+    repo.saveCommission = async (cm: any) => {
+      if (on) throw new RepoError('save down');
+      return orig(cm);
+    };
+    return () => {
+      on = false;
+    };
+  };
+
+  it('create: 201 with a pending preview, one case, listed as pending, repaired by the next PATCH', async () => {
+    const { req, activePartner, repo, json } = await setupAdmin();
+    const p = await activePartner('A1');
+    const heal = failSave(repo);
+    const res = await req(clerk, 'POST', '/api/admin/cases', newCase(p.id));
+    expect(res.status).toBe(201);
+    const c = await json(res);
+    expect(c.commissionPending).toBe(true);
+    expect(c.commission).toMatchObject({ amount: 150, status: '待处理' });
+    expect(await repo.listCases({})).toHaveLength(1);
+    expect(await repo.getCommission(c.id)).toBeNull();
+    expect(repo.auditLog.at(-1)).toMatchObject({ action: 'case.create', id: c.id });
+
+    const list = await json(await req(clerk, 'GET', '/api/admin/commissions'));
+    expect(list).toEqual([expect.objectContaining({ caseId: c.id, amount: 150, status: '待处理', pending: true })]);
+
+    heal();
+    const fixed = await json(await req(clerk, 'PATCH', `/api/admin/cases/${c.id}`, { step: 1 }));
+    expect(fixed.commissionPending).toBeUndefined();
+    expect(await repo.getCommission(c.id)).toMatchObject({ amount: 150, status: '待处理' });
+    const list2 = await json(await req(clerk, 'GET', '/api/admin/commissions'));
+    expect(list2[0].pending).toBeUndefined();
+  });
+
+  it('patch: 200 pending when the recalculation fails', async () => {
+    const { req, activePartner, repo, json } = await setupAdmin();
+    const p = await activePartner('A1');
+    const c = await json(await req(clerk, 'POST', '/api/admin/cases', newCase(p.id)));
+    failSave(repo);
+    const res = await req(clerk, 'PATCH', `/api/admin/cases/${c.id}`, { step: 1, clientPaid: true });
+    expect(res.status).toBe(200);
+    const j = await json(res);
+    expect(j).toMatchObject({ step: 1, commissionPending: true, commission: { status: '可发放' } });
+    expect((await repo.getCase(c.id))!.step).toBe(1);
+  });
+});
+
+describe('licence type on PATCH', () => {
+  it('an unchanged licence type is accepted even when it left the list; a different unlisted one is not', async () => {
+    const { req, activePartner, repo, json } = await setupAdmin();
+    const p = await activePartner('A1');
+    const c = await json(await req(clerk, 'POST', '/api/admin/cases', newCase(p.id)));
+    const s = await repo.getSettings();
+    s.licenceTypes = ['广告牌'];
+    await repo.saveSettings(s, 't');
+    expect((await req(clerk, 'PATCH', `/api/admin/cases/${c.id}`, { licenceType: '营业执照', step: 1 })).status).toBe(200);
+    expect((await req(clerk, 'PATCH', `/api/admin/cases/${c.id}`, { licenceType: '别的' })).status).toBe(400);
+  });
+});

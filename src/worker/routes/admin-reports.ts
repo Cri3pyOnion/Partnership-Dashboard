@@ -5,6 +5,7 @@ import { HttpError, adminErrorHandler } from '../admin-errors';
 import { mustMonth, round2 } from '../admin-support';
 import { requireStaff } from '../access';
 import type { AppEnv } from '../env';
+import { previewCommission } from '../recalc';
 
 export function adminReports(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
   const r = new Hono<AppEnv>();
@@ -27,8 +28,10 @@ export function adminReports(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
     };
     for (const x of cases) {
       const s = row(x.partnerId);
-      s.cases += 1;
-      if (!x.cancelled) s.revenue += x.price ?? 0;
+      if (!x.cancelled) {
+        s.cases += 1;
+        s.revenue += x.price ?? 0;
+      }
     }
     for (const cm of comms) {
       const pid = partnerOf.get(cm.caseId);
@@ -61,14 +64,22 @@ export function adminStatements(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
       repo.getPartner(partnerId), repo.listCases({ partnerId, month }), repo.listCommissions({ partnerId, month }),
     ]);
     if (!partner) throw new HttpError(404, '找不到伙伴');
-    const commOf = new Map(comms.map((cm) => [cm.caseId, cm]));
+    const commOf = new Map<string, { amount: number; basis: string; status: string; pending?: true }>(comms.map((cm) => [cm.caseId, cm]));
+    if (cases.some((x) => !commOf.has(x.id))) {
+      const rules = (await repo.getSettings()).commissionRules;
+      for (const x of cases) {
+        if (commOf.has(x.id)) continue;
+        const cm = previewCommission(x, partner.code, rules);
+        if (cm) commOf.set(x.id, { amount: cm.amount, basis: cm.basis, status: cm.status, pending: true });
+      }
+    }
     const lines = [];
     for (const x of [...cases].sort((a, b) => a.submittedAt.localeCompare(b.submittedAt) || a.id.localeCompare(b.id))) {
       const cm = commOf.get(x.id);
       if (!cm) continue;
       lines.push({
         caseId: x.id, clientName: x.clientName, licence: x.licenceType, submittedAt: x.submittedAt,
-        amount: cm.amount, basis: cm.basis, status: cm.status,
+        amount: cm.amount, basis: cm.basis, status: cm.status, ...(cm.pending ? { pending: true } : {}),
       });
     }
     return c.json({

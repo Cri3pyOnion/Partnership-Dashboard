@@ -40,7 +40,7 @@ describe('GET /api/admin/reports/monthly', () => {
     const res = await req(clerk, 'GET', '/api/admin/reports/monthly?month=2026-11');
     expect(res.status).toBe(200);
     expect(await json(res)).toEqual([
-      { partnerId: a.id, name: 'Alice', company: 'Alice Sdn Bhd', code: 'A1', cases: 3, revenue: 2800, commission: 250 },
+      { partnerId: a.id, name: 'Alice', company: 'Alice Sdn Bhd', code: 'A1', cases: 2, revenue: 2800, commission: 250 },
       { partnerId: c.id, name: 'Charlie', company: null, code: 'C1', cases: 1, revenue: 1200, commission: 300 },
     ]);
   });
@@ -102,6 +102,19 @@ describe('GET /api/admin/statements/:partnerId/:month', () => {
     expect(nf.status).toBe(404);
     expect(await json(nf)).toEqual({ error: '找不到伙伴' });
     expect((await req(clerk, 'GET', `/api/admin/statements/${a.id}/2026-13`)).status).toBe(400);
+  });
+
+  it('previews a case with no commission row as pending, without saving it', async () => {
+    const { req, a, repo, json } = await seeded();
+    const extra = await repo.createCase({
+      partnerId: a.id, clientName: '无佣金', clientPhone: null, licenceType: '营业执照', council: null, missingDocs: null,
+      price: 1800, markup: null, invoiceNo: null, notesInternal: null, submittedAt: '2026-11-20',
+    }, 't');
+    const s = await json(await req(clerk, 'GET', `/api/admin/statements/${a.id}/2026-11`));
+    expect(s.lines.find((l: any) => l.caseId === extra.id)).toMatchObject({ amount: 150, status: '待处理', pending: true });
+    expect(s.lines.filter((l: any) => l.pending)).toHaveLength(1);
+    expect(s.total).toBe(400);
+    expect(await repo.getCommission(extra.id)).toBeNull();
   });
 
   it('is a fixed number of repo calls', async () => {

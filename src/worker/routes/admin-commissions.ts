@@ -5,6 +5,7 @@ import { HttpError, adminErrorHandler } from '../admin-errors';
 import { auditQuietly, isMonth, refreshOrDrop } from '../admin-support';
 import { requireStaff } from '../access';
 import type { AppEnv } from '../env';
+import { nextCommission, previewCommission } from '../recalc';
 
 export function adminCommissions(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
   const r = new Hono<AppEnv>();
@@ -18,7 +19,9 @@ export function adminCommissions(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
     // Two queries whatever the number of rows (subrequest cap).
     const [cases, comms] = await Promise.all([c.var.repo.listCases(f), c.var.repo.listCommissions(f)]);
     const byId = new Map(cases.map((x) => [x.id, x]));
-    const rows = [];
+    const have = new Set(comms.map((cm) => cm.caseId));
+    const missing = cases.filter((x) => !have.has(x.id));
+    const rows: Array<Record<string, unknown>> = [];
     for (const cm of comms) {
       const cs = byId.get(cm.caseId);
       if (!cs) continue;
@@ -26,6 +29,20 @@ export function adminCommissions(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
         caseId: cm.caseId, clientName: cs.clientName, partnerId: cs.partnerId, code: cm.code, amount: cm.amount,
         basis: cm.basis, status: cm.status, paidAt: cm.paidAt, paidBy: cm.paidBy,
       });
+    }
+    // A case without a commission row (a failed recalculation) is previewed in memory, never saved (R32).
+    if (missing.length) {
+      const [settings, partners] = await Promise.all([c.var.repo.getSettings(), c.var.repo.listPartners({})]);
+      const codeOf = new Map(partners.map((p) => [p.id, p.code]));
+      for (const cs of missing) {
+        const code = codeOf.get(cs.partnerId);
+        const cm = code ? previewCommission(cs, code, settings.commissionRules) : null;
+        if (!cm) continue;
+        rows.push({
+          caseId: cs.id, clientName: cs.clientName, partnerId: cs.partnerId, code: cm.code, amount: cm.amount,
+          basis: cm.basis, status: cm.status, paidAt: null, paidBy: null, pending: true,
+        });
+      }
     }
     return c.json(rows);
   });
@@ -36,17 +53,19 @@ export function adminCommissions(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
     const staff = c.var.staff;
     const settings = await repo.getSettings();
     if (settings.commissionRules.paidMarkedBy === 'admin' && staff.role !== 'admin') throw new HttpError(403, '没有权限');
-    const cm = await repo.getCommission(caseId);
-    if (!cm) throw new HttpError(404, '找不到佣金');
-    if (cm.code === 'B1') throw new HttpError(400, '此佣金不能标记为已支付');
-    if (cm.status !== '可发放') throw new HttpError(400, '佣金尚未可发放');
-    const cs = await repo.getCase(caseId);
+    const [cm, cs] = await Promise.all([repo.getCommission(caseId), repo.getCase(caseId)]);
+    if (!cm && !cs) throw new HttpError(404, '找不到佣金');
     if (!cs) throw new HttpError(404, '找不到案件');
-    const paid = { ...cm, status: '已支付' as const, paidAt: new Date().toISOString(), paidBy: staff.email };
-    await repo.saveCommission(paid);
     const partner = await repo.getPartner(cs.partnerId);
-    await refreshOrDrop(c.env, repo, cs.partnerId, partner?.viewToken ?? null);
-    await auditQuietly(repo, staff.email, 'commission.mark_paid', 'commission', caseId, { amount: cm.amount });
+    if (!partner) throw new HttpError(404, '找不到伙伴');
+    if ((cm?.code ?? partner.code) === 'B1') throw new HttpError(400, '此佣金不能标记为已支付');
+    // Recompute from the current case and rules, so a stale stored amount is never frozen (R33).
+    const next = nextCommission(cs, caseId, partner.code, cm, settings.commissionRules);
+    if (next.status !== '可发放') throw new HttpError(400, '佣金尚未可发放');
+    const paid = { ...next, status: '已支付' as const, paidAt: new Date().toISOString(), paidBy: staff.email };
+    await repo.saveCommission(paid);
+    await refreshOrDrop(c.env, repo, partner.id, partner.viewToken);
+    await auditQuietly(repo, staff.email, 'commission.mark_paid', 'commission', caseId, { amount: paid.amount });
     return c.json(paid);
   });
 

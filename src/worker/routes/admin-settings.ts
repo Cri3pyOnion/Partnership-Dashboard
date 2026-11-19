@@ -17,6 +17,7 @@ const isNum = (v: unknown, max = Infinity): v is number => typeof v === 'number'
 /** The stored settings with the body's values merged over them; any bad value is a 400 naming its field. */
 function mergeSettings(cur: Settings, raw: unknown): Settings {
   const b = readObject(raw);
+  if (!['commissionRules', 'licenceTypes', 'inactiveDays'].some((k) => has(b, k))) throw new HttpError(400, '没有需要更新的栏位');
   const next: Settings = structuredClone(cur);
   const fields: Record<string, string> = {};
   const rules: CommissionRules = next.commissionRules;
@@ -121,7 +122,17 @@ export function adminStaff(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
     if (team !== null && !TEAMS.includes(team as Team)) throw bad('team', '团队不正确');
     if (has(b, 'active') && typeof b.active !== 'boolean') throw bad('active', '格式不正确');
     const active = has(b, 'active') ? (b.active as boolean) : true;
-    if (!active && email === c.var.staff.email.toLowerCase()) throw new HttpError(400, '不能停用自己的账号');
+    const me = c.var.staff.email.toLowerCase();
+    if (!active && email === me) throw new HttpError(400, '不能停用自己的账号');
+    if (b.role === 'staff' && email === me) throw new HttpError(400, '不能降级自己的账号');
+    // Never leave the system without an active admin (one listStaff call, only when an admin is demoted or deactivated).
+    if (b.role !== 'admin' || !active) {
+      const target = await repo.getStaff(email);
+      if (target?.role === 'admin' && target.active) {
+        const others = (await repo.listStaff()).filter((x) => x.email.toLowerCase() !== email && x.role === 'admin' && x.active);
+        if (others.length === 0) throw new HttpError(400, '至少需要一位管理员');
+      }
+    }
 
     const s: Staff = { email, name, role: b.role, team: team as Team | null, active };
     await repo.saveStaff(s, c.var.staff.email);

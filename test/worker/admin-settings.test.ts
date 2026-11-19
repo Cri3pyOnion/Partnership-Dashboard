@@ -206,3 +206,49 @@ describe('staff', () => {
     expect(await json(res)).toEqual(DB_DOWN);
   });
 });
+
+describe('R34 and extras', () => {
+  it('an empty PUT settings body is a 400', async () => {
+    const { req, json } = await setupAdmin();
+    const res = await req(admin, 'PUT', '/api/admin/settings', {});
+    expect(res.status).toBe(400);
+    expect(await json(res)).toEqual({ error: '没有需要更新的栏位' });
+  });
+
+  it('an admin cannot demote themselves', async () => {
+    const { req, repo, json } = await setupAdmin();
+    const res = await req(admin, 'PUT', `/api/admin/staff/${admin.email}`, { name: 'Boss', role: 'staff', team: 'IT', active: true });
+    expect(res.status).toBe(400);
+    expect((await json(res)).error).toBe('不能降级自己的账号');
+    expect((await repo.getStaff(admin.email))!.role).toBe('admin');
+  });
+
+  it('demoting another admin is fine while an admin remains; non-admins do not list staff', async () => {
+    const { req, repo } = await setupAdmin();
+    await repo.saveStaff({ email: 'two@tohsign.com', name: 'Two', role: 'admin', team: null, active: true }, 't');
+    const calls: string[] = [];
+    const orig = repo.listStaff.bind(repo);
+    repo.listStaff = async () => {
+      calls.push('listStaff');
+      return orig();
+    };
+    const res = await req(admin, 'PUT', '/api/admin/staff/two@tohsign.com', { name: 'Two', role: 'staff', team: null, active: true });
+    expect(res.status).toBe(200);
+    expect(calls).toEqual(['listStaff']);
+    await req(admin, 'PUT', `/api/admin/staff/${clerk.email}`, { name: 'Clerk', role: 'staff', team: null, active: false });
+    expect(calls).toEqual(['listStaff']);
+  });
+
+  it('never leaves zero active admins', async () => {
+    const { req, repo, json } = await setupAdmin();
+    await repo.saveStaff({ email: 'two@tohsign.com', name: 'Two', role: 'admin', team: null, active: true }, 't');
+    // a stale list in which the target is the only admin
+    repo.listStaff = async () => [{ email: 'two@tohsign.com', name: 'Two', role: 'admin', team: null, active: true }];
+    const res = await req(admin, 'PUT', '/api/admin/staff/two@tohsign.com', { name: 'Two', role: 'staff', team: null, active: true });
+    expect(res.status).toBe(400);
+    expect(await json(res)).toEqual({ error: '至少需要一位管理员' });
+    const res2 = await req(admin, 'PUT', '/api/admin/staff/two@tohsign.com', { name: 'Two', role: 'admin', team: null, active: false });
+    expect(res2.status).toBe(400);
+    expect((await repo.getStaff('two@tohsign.com'))!.role).toBe('admin');
+  });
+});

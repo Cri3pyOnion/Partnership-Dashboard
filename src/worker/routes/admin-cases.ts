@@ -9,7 +9,7 @@ import {
 } from '../admin-support';
 import { requireStaff } from '../access';
 import type { AppEnv } from '../env';
-import { nextCommission, recalcCase } from '../recalc';
+import { nextCommission, recalcAfterCommit } from '../recalc';
 
 const NOT_BLANK_TEXT = ['clientName'] as const;
 const OPT_TEXT = ['clientPhone', 'council', 'missingDocs', 'invoiceNo', 'notesInternal'] as const;
@@ -130,9 +130,9 @@ export function adminCases(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
       ...(f.submittedAt !== undefined ? { submittedAt: f.submittedAt } : {}),
     };
     const created = await repo.createCase(input, c.var.staff.email);
-    const commission = await recalcCase(c.env, repo, created.id);
+    const rc = await recalcAfterCommit(c.env, repo, created, partner, null, settings.commissionRules);
     await auditQuietly(repo, c.var.staff.email, 'case.create', 'case', created.id, { partnerId, price: created.price });
-    return c.json({ ...created, commission }, 201);
+    return c.json({ ...created, ...rc }, 201);
   });
 
   r.patch('/:id', async (c) => {
@@ -147,7 +147,8 @@ export function adminCases(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
       repo.getPartner(cur.partnerId), repo.getSettings(), repo.getCommission(id),
     ]);
     if (!partner) throw new HttpError(404, '找不到伙伴');
-    const out = readCaseFields(b, settings.licenceTypes);
+    // An unchanged licence type stays valid even if it was later removed from the list.
+    const out = readCaseFields(b, [...settings.licenceTypes, cur.licenceType]);
 
     if (has(b, 'clientPaid')) {
       if (out.clientPaid) out.clientPaidAt = out.clientPaidAt ?? (cur.clientPaid && cur.clientPaidAt ? cur.clientPaidAt : klDay(new Date()));
@@ -167,9 +168,9 @@ export function adminCases(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
     ) throw new HttpError(400, 'B1 案件需先结清才能递交');
 
     const updated = await repo.updateCase(id, out, c.var.staff.email);
-    const commission = await recalcCase(c.env, repo, id);
+    const rc = await recalcAfterCommit(c.env, repo, updated, partner, existing, settings.commissionRules);
     await auditQuietly(repo, c.var.staff.email, 'case.update', 'case', id, { fields: Object.keys(out) });
-    return c.json({ ...updated, commission });
+    return c.json({ ...updated, ...rc });
   });
 
   return r;
