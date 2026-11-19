@@ -1,7 +1,6 @@
 import { DEFAULT_RULES } from '../src/shared/commission';
 import { formatCaseId, formatPartnerId } from '../src/shared/ids';
-import { monthRange } from '../src/worker/mapping';
-import { DEFAULT_INACTIVE_DAYS, DEFAULT_LICENCE_TYPES } from '../src/worker/mapping';
+import { DEFAULT_INACTIVE_DAYS, DEFAULT_LICENCE_TYPES, monthRange, pickNewCase, pickNewPartner } from '../src/worker/mapping';
 import { NotFoundError, RepoError } from '../src/worker/repo';
 import type { CaseHistoryRow, Repo } from '../src/worker/repo';
 import type { StepIndex } from '../src/shared/status';
@@ -98,7 +97,7 @@ export class FakeRepo implements Repo {
   async createPartner(input: NewPartner, _by: string) {
     this.gate();
     const p: Partner = {
-      ...clone(input),
+      ...pickNewPartner(clone(input)),
       id: formatPartnerId(++this.partnerSeq),
       status: '待审核',
       viewToken: null,
@@ -113,6 +112,11 @@ export class FakeRepo implements Repo {
     if (!cur) throw new NotFoundError(`partner ${id} not found`);
     const { id: _ignored, ...rest } = patch;
     const next = { ...cur, ...definedOnly(rest) };
+    if (next.viewToken !== null) {
+      for (const o of this.partners.values()) {
+        if (o.id !== id && o.viewToken === next.viewToken) throw new RepoError('duplicate view_token');
+      }
+    }
     this.partners.set(id, next);
     return clone(next);
   }
@@ -139,7 +143,7 @@ export class FakeRepo implements Repo {
     const key = formatCaseId(at, 0).slice(3, 7); // YYMM in Kuala Lumpur
     const n = (this.caseCounters.get(key) ?? 0) + 1;
     this.caseCounters.set(key, n);
-    const { submittedAt, ...rest } = clone(input);
+    const { submittedAt, ...rest } = pickNewCase(clone(input));
     const c: Case = {
       ...rest,
       id: formatCaseId(at, n),
@@ -158,6 +162,7 @@ export class FakeRepo implements Repo {
     if (!cur) throw new NotFoundError(`case ${id} not found`);
     const { id: _ignored, ...rest } = patch;
     const next = { ...cur, ...definedOnly(rest) };
+    if (!Number.isInteger(next.step) || next.step < 0 || next.step > 5) throw new RepoError(`step out of range: ${next.step}`);
     this.cases.set(id, next);
     if (next.step !== cur.step) {
       const rows = this.history.get(id) ?? [];

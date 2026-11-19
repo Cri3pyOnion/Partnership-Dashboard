@@ -60,6 +60,15 @@ export function runRepoContract(make: () => Promise<Repo>): void {
       expect(bare).toMatchObject({ tin: null, company: null, bankName: null, bankAccount: null, source: null });
     });
 
+    it('ignores status and viewToken in the create input', async () => {
+      const repo = await make();
+      const evil = { ...partnerInput(), status: '活跃', viewToken: 'x'.repeat(43), registeredAt: '2000-01-01' } as unknown as NewPartner;
+      const p = await repo.createPartner(evil, 'a@x.com');
+      expect(p.status).toBe('待审核');
+      expect(p.viewToken).toBeNull();
+      expect(p.registeredAt).not.toBe('2000-01-01');
+    });
+
     it('returns null for unknown id and unknown token', async () => {
       const repo = await make();
       expect(await repo.getPartner('TSP9999999')).toBeNull();
@@ -104,6 +113,14 @@ export function runRepoContract(make: () => Promise<Repo>): void {
         expect(c.id).toMatch(/^TS-\d{4}-\d{3,}$/);
         expect(c).toMatchObject({ step: 0, cancelled: false, clientPaid: false, clientPaidAt: null, partnerId: p.id });
       }
+    });
+
+    it('ignores step, cancelled and clientPaid in the create input', async () => {
+      const repo = await make();
+      const p = await repo.createPartner(partnerInput(), 'a@x.com');
+      const evil = { ...caseInput(p.id), step: 4, cancelled: true, clientPaid: true, clientPaidAt: '2026-01-01' } as unknown as NewCase;
+      const c = await repo.createCase(evil, 'a@x.com');
+      expect(c).toMatchObject({ step: 0, cancelled: false, clientPaid: false, clientPaidAt: null });
     });
 
     it('round-trips money as numbers and getCase returns null when missing', async () => {

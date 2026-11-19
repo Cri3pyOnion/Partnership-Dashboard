@@ -29,4 +29,22 @@ describe('FakeRepo', () => {
     expect(err).toBeInstanceOf(RepoError);
     expect(err.cause).toBe(cause);
   });
+
+  it('rejects a duplicate non-null viewToken but allows several nulls', async () => {
+    const repo = new FakeRepo();
+    const a = await repo.createPartner(partnerInput(), 'a');
+    const b = await repo.createPartner(partnerInput(), 'a');
+    await repo.updatePartner(a.id, { viewToken: 't'.repeat(43) }, 'a');
+    await expect(repo.updatePartner(b.id, { viewToken: 't'.repeat(43) }, 'a')).rejects.toBeInstanceOf(RepoError);
+    await expect(repo.updatePartner(b.id, { name: 'B2' }, 'a')).resolves.toMatchObject({ viewToken: null });
+  });
+
+  it('rejects a step outside 0-5', async () => {
+    const repo = new FakeRepo();
+    const p = await repo.createPartner(partnerInput(), 'a');
+    const c = await repo.createCase(caseInput(p.id), 'a');
+    await expect(repo.updateCase(c.id, { step: 6 as never }, 'a')).rejects.toBeInstanceOf(RepoError);
+    await expect(repo.updateCase(c.id, { step: -1 as never }, 'a')).rejects.toBeInstanceOf(RepoError);
+    expect((await repo.getCase(c.id))?.step).toBe(0);
+  });
 });

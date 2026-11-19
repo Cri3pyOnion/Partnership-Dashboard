@@ -2,7 +2,7 @@
 import { DEFAULT_RULES } from '../shared/commission';
 import type { StepIndex } from '../shared/status';
 import type {
-  Case, CaseDocument, Commission, Partner, Settings, Staff,
+  Case, CaseDocument, Commission, NewCase, NewPartner, Partner, Settings, Staff,
 } from '../shared/types';
 
 export type Row = Record<string, any>;
@@ -35,6 +35,19 @@ export const partnerFromRow = (r: Row): Partner => ({
   referralName: r.referral_name, filledBy: r.filled_by, source: r.source, bankName: r.bank_name,
   bankAccount: r.bank_account, status: r.status, viewToken: r.view_token, registeredAt: r.registered_at,
 });
+/** Explicit whitelist: only these keys of a create input are ever used (no mass assignment). */
+export const pickNewPartner = (i: NewPartner): NewPartner => ({
+  name: i.name, phone: i.phone, email: i.email, tin: i.tin, company: i.company, code: i.code,
+  referralName: i.referralName, filledBy: i.filledBy, source: i.source, bankName: i.bankName,
+  bankAccount: i.bankAccount,
+});
+export const pickNewCase = (i: NewCase): NewCase => ({
+  partnerId: i.partnerId, clientName: i.clientName, clientPhone: i.clientPhone, licenceType: i.licenceType,
+  council: i.council, missingDocs: i.missingDocs, price: i.price, markup: i.markup, invoiceNo: i.invoiceNo,
+  notesInternal: i.notesInternal,
+  ...(i.submittedAt !== undefined ? { submittedAt: i.submittedAt } : {}),
+});
+
 /** `id` is never written. */
 export const partnerToRow = (p: Partial<Partner>): Row => toRow(p, PARTNER_COLS);
 

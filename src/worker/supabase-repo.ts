@@ -4,7 +4,7 @@ import type {
   Case, CaseDocument, Commission, NewCase, NewDocument, NewPartner, Partner, PartnerStatus, Settings, Staff,
 } from '../shared/types';
 import {
-  caseFromRow, caseToRow, commissionFromRow, commissionToRow, documentFromRow, monthRange, partnerFromRow,
+  caseFromRow, caseToRow, pickNewCase, pickNewPartner, commissionFromRow, commissionToRow, documentFromRow, monthRange, partnerFromRow,
   partnerToRow, settingsFromRows, settingsToRows, staffFromRow, staffToRow, type Row,
 } from './mapping';
 import { NotFoundError, RepoError, type CaseHistoryRow, type Repo } from './repo';
@@ -76,7 +76,7 @@ export class SupabaseRepo implements Repo {
   }
   async createPartner(input: NewPartner, _by: string): Promise<Partner> {
     const id = await this.rpcText('next_partner_id');
-    const row = { ...partnerToRow(input), id, status: '待审核' };
+    const row = { ...partnerToRow(pickNewPartner(input)), id, status: '待审核', view_token: null };
     const r = await run<Row>('createPartner', this.db.from('partners').insert(row).select('*').single());
     return partnerFromRow(r!);
   }
@@ -109,7 +109,9 @@ export class SupabaseRepo implements Repo {
   }
   async createCase(input: NewCase, _by: string): Promise<Case> {
     const id = await this.rpcText('next_case_id');
-    const row = { ...caseToRow(input), id };
+    const row = {
+      ...caseToRow(pickNewCase(input)), id, step: 0, cancelled: false, client_paid: false, client_paid_at: null,
+    };
     const r = await run<Row>('createCase', this.db.from('cases').insert(row).select('*').single());
     return caseFromRow(r!);
   }
