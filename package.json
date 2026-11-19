@@ -12,6 +12,8 @@
     "deploy": "npm run build && wrangler deploy"
   },
   "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "0.23.0",
+    "@cloudflare/workers-types": "5.20261104.1",
     "@electric-sql/pglite": "0.5.15",
     "@types/node": "22.20.4",
     "typescript": "7.0.2",
@@ -19,6 +21,8 @@
     "wrangler": "4.157.0"
   },
   "dependencies": {
-    "@supabase/supabase-js": "2.119.0"
+    "@supabase/supabase-js": "2.119.0",
+    "hono": "4.13.16",
+    "jose": "6.2.15"
   }
 }
