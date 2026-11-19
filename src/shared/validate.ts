@@ -1,7 +1,9 @@
 export function normalizePhone(s: string): string | null {
   const t = s.trim().replace(/^\+60/, '').trim().replace(/^0/, '');
   if (!/^1[0-9][0-9 -]{6,10}$/.test(t)) return null;
-  return '+60' + t.replace(/[^0-9]/g, '');
+  const digits = t.replace(/[^0-9]/g, '');
+  if (digits.length < 9 || digits.length > 10) return null;
+  return '+60' + digits;
 }
 
 export function normalizeTin(s: string): string | null {
