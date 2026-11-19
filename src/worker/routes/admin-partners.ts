@@ -4,23 +4,22 @@ import type { JWTVerifyGetKey } from 'jose';
 import { isEmail, normalizePhone, normalizeTin } from '../../shared/validate';
 import type { NewPartner, Partner, PartnerCode, PartnerStatus, Source, Team } from '../../shared/types';
 import { HttpError, adminErrorHandler, notFoundPartner } from '../admin-errors';
+import { MAX_TEXT, auditQuietly, has, klDay, readJson, refreshOrDrop } from '../admin-support';
 import { requireStaff } from '../access';
 import type { AppEnv, Env } from '../env';
 import type { Repo } from '../repo';
 import { newViewToken } from '../token';
-import { dropPartnerView, refreshPartnerView } from '../view-cache';
+import { dropPartnerView } from '../view-cache';
 
 const CODES: PartnerCode[] = ['A1', 'B1', 'C1'];
 const TEAMS: Team[] = ['Transmission', '市场部', 'IT'];
 const SOURCES: Source[] = ['上门', '线上'];
 const STATUSES: PartnerStatus[] = ['待审核', '活跃', '不活跃'];
 const FORBIDDEN = ['id', 'viewToken', 'registeredAt'];
-const MAX_TEXT = 200;
 const TEXT_KEYS = ['name', 'phone', 'email', 'tin', 'company', 'referralName', 'bankName', 'bankAccount'];
 const BAD_FIELDS = '请检查红色栏位';
 
 type Fields = Record<string, string>;
-const has = (o: Record<string, unknown>, k: string) => Object.prototype.hasOwnProperty.call(o, k);
 
 /** string trimmed, or null when blank or null; undefined when not a string. */
 function optText(v: unknown): string | null | undefined {
@@ -112,14 +111,6 @@ function validatePartner(raw: unknown, mode: 'create' | 'patch', current?: Partn
   return out;
 }
 
-async function readJson(req: Request): Promise<unknown> {
-  try {
-    return await req.json();
-  } catch {
-    throw new HttpError(400, '请求格式不正确');
-  }
-}
-
 /** Link for a token. A missing base URL is a setup error, never a relative link. */
 function linkFor(env: Env, token: string): string {
   const base = (env.PUBLIC_BASE_URL ?? '').trim().replace(/\/+$/, '');
@@ -133,34 +124,6 @@ async function mustGet(repo: Repo, id: string): Promise<Partner> {
   return p;
 }
 
-/**
- * Rebuild the stored page after a committed write. If the rebuild fails, drop the page instead so
- * the next view rebuilds it rather than serving outdated data. Never fails the response.
- */
-async function refreshOrDrop(env: Env, repo: Repo, id: string, token: string | null): Promise<void> {
-  try {
-    await refreshPartnerView(env, repo, id);
-    return;
-  } catch (err) {
-    console.error('refreshPartnerView failed:', err instanceof Error ? err.message : 'unknown');
-  }
-  if (!token) return;
-  try {
-    await dropPartnerView(env, token);
-  } catch (err) {
-    console.error('dropPartnerView failed:', err instanceof Error ? err.message : 'unknown');
-  }
-}
-
-/** Audit is last: the write is already committed, so a failure is logged (no token) and ignored. */
-async function auditQuietly(repo: Repo, by: string, action: string, id: string, details?: object): Promise<void> {
-  try {
-    await repo.audit(by, action, 'partner', id, details);
-  } catch (err) {
-    console.error(`audit ${action} failed for ${id}:`, err instanceof Error ? err.message : 'unknown');
-  }
-}
-
 /** Drop a page up to 3 times; true when one try worked. */
 async function dropWithRetry(env: Env, token: string): Promise<boolean> {
   for (let i = 0; i < 3; i++) {
@@ -172,13 +135,6 @@ async function dropWithRetry(env: Env, token: string): Promise<boolean> {
     }
   }
   return false;
-}
-
-/** 'YYYY-MM-DD' of a date or timestamp in Asia/Kuala_Lumpur. */
-function klDay(d: Date | string): string {
-  if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kuala_Lumpur', year: 'numeric', month: '2-digit', day: '2-digit' })
-    .format(new Date(d));
 }
 
 export function adminPartners(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
@@ -197,7 +153,7 @@ export function adminPartners(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
     const input = validatePartner(await readJson(c.req.raw), 'create') as NewPartner;
     const repo = c.var.repo;
     const p = await repo.createPartner(input, c.var.staff.email);
-    await auditQuietly(repo, c.var.staff.email, 'partner.create', p.id, { code: p.code, name: p.name });
+    await auditQuietly(repo, c.var.staff.email, 'partner.create', 'partner', p.id, { code: p.code, name: p.name });
     return c.json(p, 201);
   });
 
@@ -243,7 +199,7 @@ export function adminPartners(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
     const patch = validatePartner(await readJson(c.req.raw), 'patch', current);
     const updated = await repo.updatePartner(id, patch, c.var.staff.email);
     await refreshOrDrop(c.env, repo, id, updated.viewToken);
-    await auditQuietly(repo, c.var.staff.email, 'partner.update', id, { fields: Object.keys(patch) });
+    await auditQuietly(repo, c.var.staff.email, 'partner.update', 'partner', id, { fields: Object.keys(patch) });
     return c.json(updated);
   });
 
@@ -256,7 +212,7 @@ export function adminPartners(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
     const link = linkFor(c.env, token); // fails before anything is written when the base URL is missing
     await repo.updatePartner(id, { status: '活跃', viewToken: token }, c.var.staff.email);
     await refreshOrDrop(c.env, repo, id, token);
-    await auditQuietly(repo, c.var.staff.email, 'partner.approve', id, { from: p.status, issuedLink: p.viewToken === null });
+    await auditQuietly(repo, c.var.staff.email, 'partner.approve', 'partner', id, { from: p.status, issuedLink: p.viewToken === null });
     return c.json({ link });
   });
 
@@ -274,7 +230,7 @@ export function adminPartners(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
     await refreshOrDrop(c.env, repo, id, token);
     // A view may have rebuilt the old page between the first drop and the commit; best effort, never fails.
     await dropWithRetry(c.env, old);
-    await auditQuietly(repo, c.var.staff.email, 'partner.reset_link', id);
+    await auditQuietly(repo, c.var.staff.email, 'partner.reset_link', 'partner', id);
     return c.json({ link });
   });
 
