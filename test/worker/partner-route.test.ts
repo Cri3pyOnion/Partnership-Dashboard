@@ -1,6 +1,7 @@
 import { createExecutionContext, waitOnExecutionContext } from 'cloudflare:test';
 import { env as testEnv } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
+import { refreshOrDrop } from '../../src/worker/admin-support';
 import type { Env } from '../../src/worker/env';
 import { createApp } from '../../src/worker/index';
 import type { Repo } from '../../src/worker/repo';
@@ -160,6 +161,16 @@ describe('GET /p/:token', () => {
     expect((await get(sync.repo, `/p/${sync.token}`)).status).toBe(200);
   });
 
+  it('other /p/ paths (extra segments, a trailing slash) are the same 404 链接无效 page', async () => {
+    const { repo, token } = await seeded();
+    for (const path of ['/p/a/b', `/p/${token}/`, `/p/${token}/x`, '/p/', '/p']) {
+      const res = await get(repo, path);
+      expect(res.status, path).toBe(404);
+      expect(await res.text()).toContain('链接无效');
+      expectSecurityHeaders(res, 'no-store');
+    }
+  });
+
   it('HEAD works', async () => {
     const { repo, token } = await seeded();
     const res = await get(repo, `/p/${token}`, { method: 'HEAD' });
@@ -194,6 +205,36 @@ describe('best-effort KV and unexpected errors (R22)', () => {
     expect(res.status).toBe(200);
     expect(await res.text()).toContain('Kedai Kopi Ah Seng');
     expect(await ENV.VIEWS.get(await kvKey(token))).toBeNull();
+  });
+
+  it('a KV put failure on a miss deletes the key (best effort) and still returns the page', async () => {
+    const { repo, token } = await seeded();
+    const deleted: string[] = [];
+    const kv = new Proxy(ENV.VIEWS, {
+      get(target, prop) {
+        if (prop === 'put') return async () => { throw new Error('429 too many writes'); };
+        if (prop === 'delete') return async (k: string) => { deleted.push(k); await target.delete(k); };
+        const v = Reflect.get(target, prop);
+        return typeof v === 'function' ? v.bind(target) : v;
+      },
+    });
+    const v = await getPartnerView({ ...ENV, VIEWS: kv }, repo, token);
+    expect(v?.html).toContain('Kedai Kopi Ah Seng');
+    expect(deleted).toEqual([await kvKey(token)]);
+  });
+
+  it('a KV put failure on refresh throws, so refreshOrDrop drops the stale page (R27)', async () => {
+    const { repo, partner, token } = await seeded();
+    await get(repo, `/p/${token}`); // a snapshot exists
+    await repo.createCase(caseInput(partner.id, { clientName: 'Glow Beauty Studio' }), 't');
+    const env = { ...ENV, VIEWS: brokenKV(['put']) };
+    await expect(refreshPartnerView(env, repo, partner.id)).rejects.toThrow();
+    await get(repo, `/p/${token}`); // a snapshot exists again
+    expect(await ENV.VIEWS.get(await kvKey(token))).not.toBeNull();
+    await repo.createCase(caseInput(partner.id, { clientName: 'Bright Tuition Centre' }), 't');
+    await refreshOrDrop(env, repo, partner.id, token);
+    expect(await ENV.VIEWS.get(await kvKey(token))).toBeNull();
+    expect(await (await get(repo, `/p/${token}`)).text()).toContain('Bright Tuition Centre');
   });
 
   it('a malformed KV value falls through to a rebuild', async () => {

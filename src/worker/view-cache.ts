@@ -42,17 +42,31 @@ async function readSnapshot(env: Env, k: string): Promise<Snapshot | null> {
   return null;
 }
 
+/** The KV put failed (for example the 1 write/sec per key limit). The key was deleted, best effort. */
+export class SnapshotPutError extends Error {
+  constructor(options?: { cause?: unknown }) {
+    super('snapshot put failed', options);
+    this.name = 'SnapshotPutError';
+  }
+}
+
 /**
  * Put-then-verify (R20): after storing, re-read the partner. If its token is no longer the one just
  * written (a reset raced us), or the re-read fails, delete the key so an old link cannot come back.
- * The put itself is best-effort (R22).
+ * A failed put deletes the key (best effort) and throws SnapshotPutError, so an older snapshot is
+ * never left behind silently and refreshOrDrop runs its drop (R27).
  */
 async function store(env: Env, repo: Repo, partnerId: string, token: string, snap: Snapshot): Promise<void> {
   const k = await key(token);
   try {
     await env.VIEWS.put(k, JSON.stringify(snap), { expirationTtl: SNAPSHOT_TTL_SECONDS });
-  } catch {
-    return; // nothing was written, nothing to verify
+  } catch (err) {
+    try {
+      await env.VIEWS.delete(k);
+    } catch {
+      // best-effort; the caller still learns that the put failed
+    }
+    throw new SnapshotPutError({ cause: err });
   }
   let current: string | null = null;
   try {
@@ -89,11 +103,19 @@ export async function getPartnerView(
   const p = await repo.getPartnerByToken(token);
   if (!p) return null;
   const snap = await build(env, repo, p);
-  await store(env, repo, p.id, token, snap);
+  try {
+    await store(env, repo, p.id, token, snap);
+  } catch (err) {
+    // R22: the page was built, so serve it; store() already deleted the key.
+    if (!(err instanceof SnapshotPutError)) throw err;
+  }
   return { html: snap.html, partnerId: snap.partnerId };
 }
 
-/** Rebuild the stored page after that partner's data changed. No-op when the partner has no link. */
+/**
+ * Rebuild the stored page after that partner's data changed. No-op when the partner has no link.
+ * Throws when the page cannot be stored, so the caller can drop it (refreshOrDrop).
+ */
 export async function refreshPartnerView(env: Env, repo: Repo, partnerId: string): Promise<void> {
   const p = await repo.getPartner(partnerId);
   if (!p?.viewToken) return;

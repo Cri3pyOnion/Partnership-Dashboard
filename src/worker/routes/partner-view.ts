@@ -44,3 +44,7 @@ partnerView.get('/p/:token', async (c) => {
   logView(c, view.partnerId);
   return page(view.html, 200, 'no-store'); // R21: never cache, so a reset link dies at once
 });
+
+// Anything else under /p (extra segments, a trailing slash, no token): the same invalid-link page.
+partnerView.get('/p', (_c) => page(renderInvalidLink(), 404, 'no-store'));
+partnerView.get('/p/*', (_c) => page(renderInvalidLink(), 404, 'no-store'));
