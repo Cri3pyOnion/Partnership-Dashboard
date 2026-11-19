@@ -56,13 +56,22 @@ export function calcCommission(
   };
 }
 
+/** 已支付 and 已结清 are final: a recalculation never rewrites the row. */
+export const isFrozen = (cm: Commission | null, opts: { unsettle?: boolean } = {}): cm is Commission =>
+  cm?.status === '已支付' || (cm?.status === '已结清' && !opts.unsettle);
+
+/**
+ * The commission row after a recalculation. A frozen row (已支付, 已结清) is returned as it is.
+ * `unsettle` is the one exception: an explicit clientPaid false on the case lets a 已结清 row be recomputed.
+ */
 export function applyCommission(
   caseId: string,
   existing: Commission | null,
   next: CommissionCalc,
   code: PartnerCode,
+  opts: { unsettle?: boolean } = {},
 ): Commission {
-  if (existing?.status === '已支付') return existing;
+  if (isFrozen(existing, opts)) return existing;
   return {
     caseId,
     code: existing?.code ?? code,

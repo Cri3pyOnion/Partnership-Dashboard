@@ -201,6 +201,22 @@ export function runRepoContract(make: () => Promise<Repo>): void {
       const octOnly = await repo.listCommissions({ partnerId: p.id, month: '2026-10' });
       expect(octOnly.map((c) => c.caseId)).toEqual([oct.id]);
     });
+
+    it('ignores any save over an 已支付 row (a concurrent recalc cannot unfreeze it)', async () => {
+      const repo = await make();
+      const p = await repo.createPartner(partnerInput(), 'a@x.com');
+      const c = await repo.createCase(caseInput(p.id), 'a@x.com');
+      const paid: Commission = { caseId: c.id, code: 'A1', amount: 150, basis: 'above', status: '已支付', paidAt: '2026-11-12T03:00:00.000Z', paidBy: 'admin@x.com' };
+      await repo.saveCommission(paid);
+      await repo.saveCommission({ ...paid, amount: 100, status: '可发放', paidAt: null, paidBy: null });
+      expect(await repo.getCommission(c.id)).toEqual(paid);
+      // 已结清 is frozen in app code, not in the repo, so an explicit un-settle can still be saved.
+      const settled: Commission = { caseId: c.id, code: 'B1', amount: 1440, basis: 'b', status: '已结清', paidAt: null, paidBy: null };
+      const c2 = await repo.createCase(caseInput(p.id), 'a@x.com');
+      await repo.saveCommission({ ...settled, caseId: c2.id });
+      await repo.saveCommission({ ...settled, caseId: c2.id, status: '待付发票' });
+      expect((await repo.getCommission(c2.id))?.status).toBe('待付发票');
+    });
   });
 
   describe('settings', () => {

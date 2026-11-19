@@ -160,15 +160,17 @@ export function adminCases(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
 
     const code = codeOf(partner, existing);
     if (out.markup != null && code !== 'C1') throw bad('markup', '只有 C1 伙伴可以加价');
+    // 已结清 is frozen; the one explicit way out is this PATCH setting clientPaid false.
+    const opts = { unsettle: has(b, 'clientPaid') && out.clientPaid === false };
     // Compute from the patched values first: a markup over the cap fails here, before the write.
-    const preview = nextCommission({ ...cur, ...out }, id, partner.code, existing, settings.commissionRules);
+    const preview = nextCommission({ ...cur, ...out }, id, partner.code, existing, settings.commissionRules, opts);
     if (
       out.step !== undefined && out.step >= 2 && code === 'B1'
       && settings.commissionRules.B1.collectBeforeSubmit && preview.status !== '已结清'
     ) throw new HttpError(400, 'B1 案件需先结清才能递交');
 
     const updated = await repo.updateCase(id, out, c.var.staff.email);
-    const rc = await recalcAfterCommit(c.env, repo, updated, partner, existing, settings.commissionRules);
+    const rc = await recalcAfterCommit(c.env, repo, updated, partner, existing, settings.commissionRules, opts);
     await auditQuietly(repo, c.var.staff.email, 'case.update', 'case', id, { fields: Object.keys(out) });
     return c.json({ ...updated, ...rc });
   });

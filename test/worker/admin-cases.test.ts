@@ -137,6 +137,23 @@ describe('lifecycle', () => {
     expect((await json(rejected)).error).toBe('只有 C1 伙伴可以加价');
   });
 
+  it('a settled (已结清) B1 commission is frozen; only clientPaid false un-settles it', async () => {
+    const { req, activePartner, repo, json } = await setupAdmin();
+    const p = await activePartner('B1');
+    const c = await json(await req(clerk, 'POST', '/api/admin/cases', newCase(p.id)));
+    const settled = await json(await req(clerk, 'PATCH', `/api/admin/cases/${c.id}`, { clientPaid: true }));
+    expect(settled.commission).toMatchObject({ code: 'B1', amount: 1440, status: '已结清' });
+    const cancelled = await json(await req(clerk, 'PATCH', `/api/admin/cases/${c.id}`, { cancelled: true }));
+    expect(cancelled.commission).toMatchObject({ amount: 1440, status: '已结清' });
+    await req(clerk, 'PATCH', `/api/admin/cases/${c.id}`, { cancelled: false });
+    const priced = await json(await req(clerk, 'PATCH', `/api/admin/cases/${c.id}`, { price: 2000 }));
+    expect(priced.commission).toMatchObject({ amount: 1440, status: '已结清' });
+    expect(await repo.getCommission(c.id)).toMatchObject({ amount: 1440, status: '已结清' });
+    const unsettled = await json(await req(clerk, 'PATCH', `/api/admin/cases/${c.id}`, { clientPaid: false }));
+    expect(unsettled.commission).toMatchObject({ amount: 1600, status: '待付发票' });
+    expect(await repo.getCommission(c.id)).toMatchObject({ amount: 1600, status: '待付发票' });
+  });
+
   it('cancelling zeroes the commission; un-cancelling restores it', async () => {
     const { req, activePartner, json } = await setupAdmin();
     const p = await activePartner('A1');

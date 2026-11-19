@@ -197,6 +197,8 @@ export class FakeRepo implements Repo {
   async saveCommission(c: Commission) {
     this.gate();
     if (!this.cases.has(c.caseId)) throw new RepoError(`unknown case ${c.caseId}`);
+    // Mirrors the freeze_paid trigger: an update of an 已支付 row is ignored.
+    if (this.commissions.get(c.caseId)?.status === '已支付') return;
     this.commissions.set(c.caseId, clone(c));
   }
 

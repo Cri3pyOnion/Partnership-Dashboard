@@ -7,7 +7,10 @@ import { DEFAULT_RULES } from '../../src/shared/commission';
 
 const root = fileURLToPath(new URL('../..', import.meta.url));
 const read = (p: string) => readFileSync(resolve(root, p), 'utf8');
-const migration = read('supabase/migrations/20261119000001_init.sql');
+const init = read('supabase/migrations/20261119000001_init.sql');
+const freezePaid = read('supabase/migrations/20261120000001_freeze_paid.sql');
+/** Every migration, in order. */
+const migration = [init, freezePaid].join('\n');
 const seed = read('supabase/seed.sql');
 const smoke = read('supabase/tests/smoke.sql');
 
@@ -79,6 +82,39 @@ describe('migration + seed', () => {
     await expect(
       db.exec(`update cases set step = 6 where id = 'TS-2611-014'`),
     ).rejects.toThrow();
+  });
+});
+
+describe('20261120000001_freeze_paid: 已支付 rows never change', () => {
+  let db: PGlite;
+  beforeAll(async () => {
+    db = new PGlite();
+    await db.exec(migration);
+    await db.exec(`
+      insert into partners (id,name,phone,email,code,filled_by,status) values ('TSP0001','n','p','e','A1','IT','活跃');
+      insert into cases (id,partner_id,client_name,licence_type) values ('TS-2611-001','TSP0001','c','营业执照'), ('TS-2611-002','TSP0001','c','营业执照');
+      insert into commissions (case_id,code,amount,basis,status,paid_at,paid_by) values
+        ('TS-2611-001','A1',150,'above','已支付','2026-11-12T03:00:00Z','a@x.com'),
+        ('TS-2611-002','A1',100,'below','可发放',null,null);
+    `);
+  });
+  const row = async (id: string) =>
+    (await db.query<{ amount: string; status: string; paid_by: string | null }>(`select amount::text, status, paid_by from commissions where case_id = '${id}'`)).rows[0];
+
+  it('ignores a plain update of an 已支付 row', async () => {
+    await db.exec(`update commissions set amount = 0, status = '可发放', paid_at = null, paid_by = null where case_id = 'TS-2611-001'`);
+    expect(await row('TS-2611-001')).toEqual({ amount: '150.00', status: '已支付', paid_by: 'a@x.com' });
+  });
+
+  it('ignores an upsert (the repo path) over an 已支付 row', async () => {
+    await db.exec(`insert into commissions (case_id,code,amount,basis,status) values ('TS-2611-001','A1',100,'x','待处理')
+      on conflict (case_id) do update set amount = excluded.amount, status = excluded.status, paid_at = null, paid_by = null`);
+    expect(await row('TS-2611-001')).toEqual({ amount: '150.00', status: '已支付', paid_by: 'a@x.com' });
+  });
+
+  it('still updates rows that are not 已支付, including marking them paid', async () => {
+    await db.exec(`update commissions set status = '已支付', paid_by = 'b@x.com' where case_id = 'TS-2611-002'`);
+    expect(await row('TS-2611-002')).toEqual({ amount: '100.00', status: '已支付', paid_by: 'b@x.com' });
   });
 });
 

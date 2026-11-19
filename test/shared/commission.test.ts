@@ -86,4 +86,16 @@ describe('applyCommission', () => {
   it('creates new commission with given code', () => {
     expect(applyCommission('TS-2609-014', null, next, 'C1').code).toBe('C1');
   });
+  const settled: Commission = {
+    caseId: 'TS-2609-015', code: 'B1', amount: 1440, basis: '伙伴价', status: '已结清', paidAt: null, paidBy: null,
+  };
+  it('keeps a settled (已结清) B1 commission frozen', () => {
+    expect(applyCommission('TS-2609-015', settled, { amount: 0, basis: '案件已取消', status: '待付发票' }, 'B1')).toEqual(settled);
+  });
+  it('recomputes a settled commission only when un-settling is explicitly allowed', () => {
+    const owed = { amount: 1600, basis: 'new', status: '待付发票' as const };
+    expect(applyCommission('TS-2609-015', settled, owed, 'B1', { unsettle: true })).toMatchObject({ amount: 1600, status: '待付发票', code: 'B1' });
+    const done: Commission = { ...settled, code: 'A1', status: '已支付' };
+    expect(applyCommission('TS-2609-015', done, owed, 'A1', { unsettle: true })).toEqual(done);
+  });
 });

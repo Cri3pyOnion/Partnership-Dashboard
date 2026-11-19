@@ -1,7 +1,7 @@
 // DEV ONLY. The in-memory cases, commissions, settings, staff, reports and statements behind
 // `npm run preview:admin`. Imported only by mock-api.ts, which main.tsx loads behind import.meta.env.DEV.
 // Marker for the production-bundle check: TOHS_DEV_MOCK_API
-import { DEFAULT_RULES, ValidationError, calcCommission } from '../../shared/commission';
+import { DEFAULT_RULES, ValidationError, calcCommission, isFrozen } from '../../shared/commission';
 import type { Case, Commission, Partner, Settings, Staff } from '../../shared/types';
 import { isEmail } from '../../shared/validate';
 
@@ -42,10 +42,10 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 export function createStaffMock(partners: Partner[], cases: Case[]) {
   const codeOf = (c: Case) => partners.find((p) => p.id === c.partnerId)?.code ?? 'A1';
 
-  /** Mirrors the Worker: recompute from the case and the rules, keep a payment that was already made. */
-  function recalc(c: Case): Commission {
-    const prev = commissions.get(c.id);
-    if (prev?.status === '已支付') return prev;
+  /** Mirrors the Worker: recompute from the case and the rules; 已支付 and 已结清 stay frozen (unless un-settled). */
+  function recalc(c: Case, opts: { unsettle?: boolean } = {}): Commission {
+    const prev = commissions.get(c.id) ?? null;
+    if (isFrozen(prev, opts)) return prev;
     const code = prev?.code ?? codeOf(c);
     const r = calcCommission(c, code, settings.commissionRules);
     const next: Commission = { caseId: c.id, code, amount: r.amount, basis: r.basis, status: r.status, paidAt: null, paidBy: null };
@@ -63,7 +63,7 @@ export function createStaffMock(partners: Partner[], cases: Case[]) {
     try {
       if (patch.markup != null && (prevCommission?.code ?? codeOf(c)) !== 'C1') throw new ValidationError('只有 C1 伙伴可以加价');
       Object.assign(c, patch);
-      const next = recalc(c);
+      const next = recalc(c, { unsettle: patch.clientPaid === false });
       if (typeof patch.step === 'number' && patch.step >= 2 && next.code === 'B1' && settings.commissionRules.B1.collectBeforeSubmit && next.status !== '已结清') {
         throw new ValidationError('B1 案件需先结清才能递交');
       }
