@@ -228,6 +228,11 @@ export class FakeRepo implements Repo {
     this.gate();
     return this.docs.filter((d) => d.caseId === caseId).map(clone);
   }
+  async getDocument(id: string) {
+    this.gate();
+    const d = this.docs.find((x) => x.id === id);
+    return d ? clone(d) : null;
+  }
   async addDocument(d: NewDocument, by: string) {
     this.gate();
     if (!this.cases.has(d.caseId)) throw new RepoError(`unknown case ${d.caseId}`);

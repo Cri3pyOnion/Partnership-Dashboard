@@ -15,7 +15,7 @@ export default defineConfig({
         })],
         test: { name: 'worker', include: ['test/worker/**/*.test.ts'] },
       },
-      // Later: `admin` (jsdom, Task 10).
+      { test: { name: 'admin', environment: 'jsdom', include: ['test/admin/**/*.test.ts'] } },
     ],
   },
 });

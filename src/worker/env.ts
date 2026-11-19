@@ -1,4 +1,5 @@
 import type { Repo } from './repo';
+import type { DocStorage } from './storage';
 import type { Staff } from '../shared/types';
 
 export type Env = {
@@ -14,4 +15,4 @@ export type Env = {
 };
 
 /** Hono environment shared by every route: bindings plus request-scoped variables. */
-export type AppEnv = { Bindings: Env; Variables: { repo: Repo; staff: Staff } };
+export type AppEnv = { Bindings: Env; Variables: { repo: Repo; storage: DocStorage; staff: Staff } };

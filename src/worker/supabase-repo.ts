@@ -184,6 +184,10 @@ export class SupabaseRepo implements Repo {
     const rows = await run<Row[]>('listDocuments', this.db.from('case_documents').select('*').eq('case_id', caseId).order('uploaded_at'));
     return (rows ?? []).map(documentFromRow);
   }
+  async getDocument(id: string): Promise<CaseDocument | null> {
+    const r = await run<Row | null>('getDocument', this.db.from('case_documents').select('*').eq('id', id).maybeSingle());
+    return r ? documentFromRow(r) : null;
+  }
   async addDocument(d: NewDocument, by: string): Promise<CaseDocument> {
     const r = await run<Row>(
       'addDocument',

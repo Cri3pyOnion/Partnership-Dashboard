@@ -267,6 +267,15 @@ export function runRepoContract(make: () => Promise<Repo>): void {
       expect(await repo.listDocuments(c.id)).toEqual([d]);
     });
 
+    it('gets one document by id, or null', async () => {
+      const repo = await make();
+      const p = await repo.createPartner(partnerInput(), 'a@x.com');
+      const c = await repo.createCase(caseInput(p.id), 'a@x.com');
+      const d = await repo.addDocument({ caseId: c.id, storagePath: `${c.id}/a.pdf`, filename: 'a.pdf', kind: 'IC' }, 'staff@x.com');
+      expect(await repo.getDocument(d.id)).toEqual(d);
+      expect(await repo.getDocument('11111111-1111-4111-8111-111111111111')).toBeNull();
+    });
+
     it('writes audit rows without error', async () => {
       const repo = await make();
       await expect(repo.audit('a@x.com', 'partner.approve', 'partner', 'TSP0001', { note: 'ok' })).resolves.toBeUndefined();

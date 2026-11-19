@@ -62,6 +62,7 @@ export interface Repo {
   listLinkViews(partnerId: string, limit: number): Promise<Array<{ viewedAt: string; country: string | null }>>;
 
   listDocuments(caseId: string): Promise<CaseDocument[]>;
+  getDocument(id: string): Promise<CaseDocument | null>;
   addDocument(d: NewDocument, by: string): Promise<CaseDocument>;
 
   /** Routes call this explicitly; the repo never audits on its own. */

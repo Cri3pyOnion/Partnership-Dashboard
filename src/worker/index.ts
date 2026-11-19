@@ -5,19 +5,23 @@ import type { AppEnv, Env } from './env';
 import { lazyRepo } from './lazy-repo';
 import type { Repo } from './repo';
 import { adminCases } from './routes/admin-cases';
+import { adminDocuments } from './routes/admin-documents';
 import { adminCommissions } from './routes/admin-commissions';
 import { adminPartners } from './routes/admin-partners';
 import { adminReports, adminStatements } from './routes/admin-reports';
 import { adminSettings, adminStaff } from './routes/admin-settings';
 import { partnerView } from './routes/partner-view';
+import { type DocStorage, SupabaseStorage, lazyStorage } from './storage';
 import { SupabaseRepo } from './supabase-repo';
 
-export function createApp(deps: { makeRepo?: (env: Env) => Repo; jwks?: JWTVerifyGetKey } = {}): Hono<AppEnv> {
+export function createApp(deps: { makeRepo?: (env: Env) => Repo; makeStorage?: (env: Env) => DocStorage; jwks?: JWTVerifyGetKey } = {}): Hono<AppEnv> {
   const makeRepo = deps.makeRepo ?? ((env: Env) => new SupabaseRepo(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY));
+  const makeStorage = deps.makeStorage ?? ((env: Env) => new SupabaseStorage(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY));
   const app = new Hono<AppEnv>();
 
   app.use('*', async (c, next) => {
     c.set('repo', lazyRepo(() => makeRepo(c.env)));
+    c.set('storage', lazyStorage(() => makeStorage(c.env)));
     await next();
   });
 
@@ -29,6 +33,7 @@ export function createApp(deps: { makeRepo?: (env: Env) => Repo; jwks?: JWTVerif
   });
 
   app.route('/api/admin/partners', adminPartners(deps.jwks));
+  app.route('/api/admin', adminDocuments(deps.jwks));
   app.route('/api/admin/cases', adminCases(deps.jwks));
   app.route('/api/admin/commissions', adminCommissions(deps.jwks));
   app.route('/api/admin/settings', adminSettings(deps.jwks));
