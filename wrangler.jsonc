@@ -2,11 +2,14 @@
   "name": "partner-portal",
   "main": "src/worker/index.ts",
   "compatibility_date": "2026-11-01",
+  // Only the custom domain serves the portal: no *.workers.dev or preview URLs that bypass Access.
+  "workers_dev": false,
+  "preview_urls": false,
   "assets": {
     "directory": "dist/public",
     "binding": "ASSETS",
     "not_found_handling": "none",
-    "run_worker_first": ["/", "/p/*", "/api/*", "/admin", "/admin/*"]
+    "run_worker_first": ["/", "/p", "/p/*", "/api/*", "/admin", "/admin/*"]
   },
   "kv_namespaces": [{ "binding": "VIEWS", "id": "REPLACE_WITH_KV_NAMESPACE_ID" }],
   "vars": {

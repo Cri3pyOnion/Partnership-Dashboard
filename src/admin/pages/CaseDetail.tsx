@@ -282,7 +282,7 @@ export function CaseDetail() {
               disabled={busy}
               onChange={(e) => save({ clientPaid: e.target.checked })}
             />
-            客户已付款
+            {code === 'B1' ? '伙伴已结清' : '客户已付款'}
           </label>
           <div className="field">
             <label htmlFor="paid-at">付款日期</label>

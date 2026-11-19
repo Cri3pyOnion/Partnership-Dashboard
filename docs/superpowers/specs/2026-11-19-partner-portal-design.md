@@ -84,7 +84,7 @@ Field names follow the whiteboard's 伙伴登记表, 伙伴名单 and 门户需�
 - Other partners, staff names, prices of other cases
 
 **Rules:**
-- The link is a 43-character random code that can't be guessed. Staff can **reset** it: the old link stops working at once.
+- The link is a 43-character random code that can't be guessed. Staff can **reset** it: the old link stops working within about a minute.
 - A link is issued only when a partner is approved (`活跃`). A `不活跃` partner's link keeps working until reset.
 - A bad, old or malformed link shows the same plain "链接无效" page and reveals nothing.
 - The page is pre-built and stored in Cloudflare KV. If Supabase is slow or paused, the last saved page is still served, with its "更新于" time.
@@ -129,7 +129,7 @@ All staff actions are written to the audit log.
 ## 8. Files
 
 - Private Supabase Storage bucket `case-documents`.
-- Uploads and downloads use short-lived signed links made by the server.
+- Files are uploaded and downloaded through the server (streamed); the browser never sees the storage address.
 - Photos are shrunk in the browser before upload (longest side 1600 px, JPEG quality 0.75).
 - PDFs are uploaded as-is. The size limit is 10 MB per file.
 

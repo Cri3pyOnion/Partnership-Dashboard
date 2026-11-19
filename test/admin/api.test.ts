@@ -48,6 +48,30 @@ describe('api', () => {
     expect(typeof err.error).toBe('string');
   });
 
+  it('a fetch TypeError (Access redirect blocked by CORS) is treated as an expired session', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('Failed to fetch'); }));
+    const err = (await api.get('/api/admin/partners').catch((e) => e)) as ApiError;
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err.status).toBe(401);
+    expect(authState.expired).toBe(true);
+  });
+
+  it('a redirected response (an Access login page) is treated as an expired session', async () => {
+    const res = new Response('<html>login</html>', { status: 200, headers: { 'content-type': 'text/html' } });
+    Object.defineProperty(res, 'redirected', { value: true });
+    vi.stubGlobal('fetch', vi.fn(async () => res));
+    const err = (await api.get('/api/admin/partners').catch((e) => e)) as ApiError;
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err.status).toBe(401);
+    expect(authState.expired).toBe(true);
+  });
+
+  it('other thrown errors are not mistaken for an expired session', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new DOMException('aborted', 'AbortError'); }));
+    await expect(api.get('/api/admin/partners')).rejects.toBeTruthy();
+    expect(authState.expired).toBe(false);
+  });
+
   it('raw returns the Response and still flags a 401', async () => {
     stubFetch(401, {});
     const res = await api.raw('/api/admin/cases/x/documents', { method: 'POST', body: new FormData() });

@@ -57,6 +57,23 @@ beforeEach(() => {
 });
 afterEach(() => vi.restoreAllMocks());
 
+describe('CaseDetail paid checkbox label', () => {
+  it('is 客户已付款 for A1/C1 and 伙伴已结清 for a B1 commission or a B1 partner', async () => {
+    const r = renderDetail();
+    expect(await screen.findByLabelText('客户已付款')).toBeTruthy();
+    r.unmount();
+    current = { ...current, commission: { ...commission, code: 'B1' } };
+    const r2 = renderDetail();
+    expect(await screen.findByLabelText('伙伴已结清')).toBeTruthy();
+    expect(screen.queryByLabelText('客户已付款')).toBeNull();
+    r2.unmount();
+    current = { ...current, commission: null };
+    partner = demoPartner({ viewToken: 'tok123', code: 'B1' });
+    renderDetail();
+    expect(await screen.findByLabelText('伙伴已结清')).toBeTruthy();
+  });
+});
+
 describe('CaseDetail steps', () => {
   it('shows six step buttons with the current one highlighted', async () => {
     renderDetail();

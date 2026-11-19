@@ -48,9 +48,30 @@ async function toError(res: Response): Promise<ApiError> {
   return new ApiError(res.status, error, fields);
 }
 
-/** fetch with the same-origin cookie; a 401 raises the session-expired flag. */
+const SESSION_EXPIRED = '登录已过期，请刷新页面重新登录';
+
+/**
+ * fetch with the same-origin cookie. A 401 raises the session-expired flag. So do the two shapes an
+ * expired Cloudflare Access session takes in the browser: the redirect to the Access login page is
+ * cross-origin, so fetch rejects with a TypeError; or, if the redirect was followed, res.redirected.
+ * Both become an ApiError 401.
+ */
 async function raw(path: string, init: RequestInit = {}): Promise<Response> {
-  const res = await fetch(path, { ...init, credentials: 'same-origin' });
+  let res: Response;
+  try {
+    res = await fetch(path, { ...init, credentials: 'same-origin' });
+  } catch (e) {
+    if (e instanceof TypeError) {
+      authState.markExpired();
+      throw new ApiError(401, SESSION_EXPIRED);
+    }
+    throw e;
+  }
+  if (res.redirected) {
+    await res.body?.cancel().catch(() => {});
+    authState.markExpired();
+    throw new ApiError(401, SESSION_EXPIRED);
+  }
   if (res.status === 401) authState.markExpired();
   return res;
 }
