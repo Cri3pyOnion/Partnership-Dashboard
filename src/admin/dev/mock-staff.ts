@@ -252,7 +252,8 @@ export function createStaffMock(partners: Partner[], cases: Case[]) {
             {
               partnerId: p.id, name: p.name, company: p.company, code: p.code, cases: live.length,
               revenue: round2(live.reduce((a, c) => a + (c.price ?? 0), 0)),
-              commission: round2(mine.reduce((a, c) => a + (commissions.get(c.id)?.amount ?? 0), 0)),
+              commission: round2(mine.reduce((a, c) => a + (commissions.get(c.id)?.code !== 'B1' ? (commissions.get(c.id)?.amount ?? 0) : 0), 0)),
+              b1Owed: round2(mine.reduce((a, c) => a + (commissions.get(c.id)?.code === 'B1' ? commissions.get(c.id)!.amount : 0), 0)),
             },
           ];
         }),
@@ -267,13 +268,14 @@ export function createStaffMock(partners: Partner[], cases: Case[]) {
         .filter((c) => c.partnerId === p.id && monthOf(c) === stm[2] && commissions.has(c.id))
         .map((c) => {
           const k = commissions.get(c.id)!;
-          return { caseId: c.id, clientName: c.clientName, licence: c.licenceType, submittedAt: c.submittedAt, amount: k.amount, basis: k.basis, status: k.status };
+          return { caseId: c.id, clientName: c.clientName, licence: c.licenceType, submittedAt: c.submittedAt, code: k.code, amount: k.amount, basis: k.basis, status: k.status };
         });
       return json(200, {
         partner: { id: p.id, name: p.name, company: p.company, code: p.code },
         month: stm[2],
         lines,
-        total: round2(lines.reduce((a, l) => a + l.amount, 0)),
+        totalCommission: round2(lines.filter((l) => l.code !== 'B1').reduce((a, l) => a + l.amount, 0)),
+        totalB1: round2(lines.filter((l) => l.code === 'B1').reduce((a, l) => a + l.amount, 0)),
       });
     }
 

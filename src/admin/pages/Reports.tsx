@@ -16,6 +16,7 @@ interface MonthRow {
   cases: number;
   revenue: number;
   commission: number;
+  b1Owed: number;
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -57,9 +58,9 @@ export function Reports() {
   // B1 amounts are owed to Toh's Sign, so they never join the commission total.
   const totalCases = list.reduce((s, r) => s + r.cases, 0);
   const totalRevenue = round2(list.reduce((s, r) => s + r.revenue, 0));
-  const totalCommission = round2(list.filter((r) => r.code !== 'B1').reduce((s, r) => s + r.commission, 0));
-  const totalB1 = round2(list.filter((r) => r.code === 'B1').reduce((s, r) => s + r.commission, 0));
-  const hasB1 = list.some((r) => r.code === 'B1');
+  const totalCommission = round2(list.reduce((s, r) => s + r.commission, 0));
+  const totalB1 = round2(list.reduce((s, r) => s + r.b1Owed, 0));
+  const hasB1 = list.some((r) => r.b1Owed > 0);
 
   return (
     <section>
@@ -110,7 +111,12 @@ export function Reports() {
                 <td className="num">{rm(r.revenue)}</td>
                 <td className="num">
                   {rm(r.commission)}
-                  {r.code === 'B1' && <span className="tag b1">{B1_LABEL}</span>}
+                  {r.b1Owed > 0 && (
+                    <div>
+                      {rm(r.b1Owed)}
+                      <span className="tag b1">{B1_LABEL}</span>
+                    </div>
+                  )}
                 </td>
                 <td>
                   <Link to={`/statements/${r.partnerId}/${month}`}>结单</Link>

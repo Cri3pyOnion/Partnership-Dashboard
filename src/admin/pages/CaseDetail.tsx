@@ -144,9 +144,12 @@ export function CaseDetail() {
       if (!file) throw { error: '请先选择文件' };
       const blob = await compressImage(file);
       if (blob.size > MAX_BYTES) throw { error: '文件不能超过 10 MB' };
-      const type = blob.type || file.type;
+      // A phone may give HEIC an empty type; the extension then says what it is.
+      const heic = /\.(heic|heif)$/i.test(file.name) ? 'image/heic' : '';
+      const type = blob.type || file.type || heic;
+      if (!type) throw { error: '只接受图片或 PDF' };
       // A shrunk photo is always a JPEG, so its name says so.
-      const name = file.type.startsWith('image/') && type === 'image/jpeg' ? `${file.name.replace(/\.[^./\\]*$/, '')}.jpg` : file.name;
+      const name = type === 'image/jpeg' && blob !== file ? `${file.name.replace(/\.[^./\\]*$/, '')}.jpg` : file.name;
       const res = await api.raw(`${base}/documents?filename=${encodeURIComponent(name)}&kind=${encodeURIComponent(kind)}`, {
         method: 'PUT',
         headers: { 'Content-Type': type },
@@ -339,7 +342,7 @@ export function CaseDetail() {
             ))}
           </select>
           <label htmlFor="doc-file">选择文件</label>
-          <input id="doc-file" ref={fileRef} type="file" accept="image/*,application/pdf" />
+          <input id="doc-file" ref={fileRef} type="file" accept="image/*,.heic,.heif,application/pdf" />
           <button type="button" className="btn" disabled={busy} onClick={upload}>
             上传
           </button>

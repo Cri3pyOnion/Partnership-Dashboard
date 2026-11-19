@@ -17,8 +17,9 @@ beforeEach(() => {
   get.mockImplementation(async (p: string) => {
     if (p.startsWith('/api/admin/reports/monthly')) {
       return [
-        { partnerId: 'TSP0001', name: 'Alice', company: null, code: 'A1', cases: 2, revenue: 2800, commission: 250 },
-        { partnerId: 'TSP0003', name: 'Bob', company: 'Bob & Co', code: 'B1', cases: 1, revenue: 1000, commission: 800 },
+        { partnerId: 'TSP0001', name: 'Alice', company: null, code: 'A1', cases: 2, revenue: 2800, commission: 250, b1Owed: 0 },
+        { partnerId: 'TSP0003', name: 'Bob', company: 'Bob & Co', code: 'B1', cases: 1, revenue: 1000, commission: 0, b1Owed: 800 },
+        { partnerId: 'TSP0004', name: 'Mixed', company: null, code: 'B1', cases: 2, revenue: 2000, commission: 100, b1Owed: 400 },
       ];
     }
     if (p === '/api/admin/partners/inactive') return [demoPartner({ name: 'Idle Ida', phone: '+60123456789' })];
@@ -44,10 +45,18 @@ describe('Reports', () => {
   it('keeps B1 amounts apart from the commission total', async () => {
     renderPage();
     await screen.findByText('Alice');
-    expect(screen.getByTestId('total-commission').textContent).toBe('RM 250');
-    expect(screen.getByTestId('total-b1').textContent).toBe('RM 800');
+    expect(screen.getByTestId('total-commission').textContent).toBe('RM 350');
+    expect(screen.getByTestId('total-b1').textContent).toBe('RM 1,200');
     expect(screen.getAllByText("应付 Toh's Sign").length).toBeGreaterThan(0);
     expect(screen.getByText("B1 金额为伙伴应付 Toh's Sign 的款项")).toBeTruthy();
+  });
+
+  it('splits a mixed-code partner by the row amounts, not by its current code', async () => {
+    renderPage();
+    const row = (await screen.findByText('Mixed')).closest('tr') as HTMLElement;
+    expect(row.textContent).toContain('RM 100');
+    expect(row.textContent).toContain('RM 400');
+    expect(row.textContent).toContain("应付 Toh's Sign");
   });
 
   it('lists inactive partners with a WhatsApp link carrying the greeting', async () => {

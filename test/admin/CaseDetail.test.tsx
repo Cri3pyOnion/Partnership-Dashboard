@@ -220,6 +220,18 @@ describe('CaseDetail documents', () => {
     expect((init.body as Blob).size).toBe(4);
   });
 
+  it('keeps a HEIC file with an empty type, deriving image/heic from the extension', async () => {
+    const user = userEvent.setup();
+    compress.mockImplementation(async (f: File) => f);
+    raw.mockResolvedValue(new Response('{}', { status: 201 }));
+    renderDetail();
+    await pick(user, new File(['heic'], 'IMG_0001.HEIC', { type: '' }));
+    await waitFor(() => expect(raw).toHaveBeenCalled());
+    const [url, init] = raw.mock.calls[0];
+    expect(url).toContain('filename=IMG_0001.HEIC&');
+    expect(init.headers).toEqual({ 'Content-Type': 'image/heic' });
+  });
+
   it('rejects a file over 10 MB without uploading', async () => {
     const user = userEvent.setup();
     const big = new Blob([new Uint8Array(10 * 1024 * 1024 + 1)], { type: 'application/pdf' });

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { rm } from '../../shared/money';
 import type { PartnerCode } from '../../shared/types';
-import { Amount, B1_LABEL, B1_NOTE } from '../Amount';
+import { Amount, B1_NOTE } from '../Amount';
 import { ErrorBanner } from '../ErrorBanner';
 import { api, errorText } from '../api';
 import { klDate } from '../format';
@@ -13,6 +13,7 @@ interface Line {
   licence: string;
   submittedAt: string;
   amount: number;
+  code: PartnerCode;
   basis: string;
   status: string;
   pending?: true;
@@ -22,7 +23,8 @@ interface Data {
   partner: { id: string; name: string; company: string | null; code: PartnerCode };
   month: string;
   lines: Line[];
-  total: number;
+  totalCommission: number;
+  totalB1: number;
 }
 
 // The menu, the buttons and the page padding disappear on paper; the table fills the page.
@@ -63,7 +65,9 @@ export function Statement() {
   }
 
   const { partner, lines } = data;
-  const b1 = partner.code === 'B1' || lines.some((l) => l.status === '待付发票' || l.status === '已结清');
+  // Each line is labelled by its own commission code, which was frozen when it was calculated.
+  const hasB1 = lines.some((l) => l.code === 'B1');
+  const hasPaid = lines.some((l) => l.code !== 'B1');
 
   return (
     <section>
@@ -76,7 +80,9 @@ export function Statement() {
           打印 / 保存为 PDF
         </button>
       </div>
-      <ErrorBanner message={error} onClose={() => setError(null)} />
+      <div className="no-print">
+        <ErrorBanner message={error} onClose={() => setError(null)} />
+      </div>
 
       <header className="statement-head">
         <h1>月结单 Statement</h1>
@@ -98,7 +104,7 @@ export function Statement() {
               <th>类型</th>
               <th>提交日期</th>
               <th>依据</th>
-              <th className="num">{b1 ? `金额（${B1_LABEL}）` : '佣金'}</th>
+              <th className="num">金额</th>
             </tr>
           </thead>
           <tbody>
@@ -117,22 +123,32 @@ export function Statement() {
                 <td>{klDate(l.submittedAt)}</td>
                 <td>{l.basis}</td>
                 <td className="num">
-                  <Amount amount={l.amount} code={partner.code === 'B1' ? 'B1' : undefined} pending={l.pending} />
+                  <Amount amount={l.amount} code={l.code} pending={l.pending} />
                 </td>
               </tr>
             ))}
           </tbody>
           <tfoot>
-            <tr>
-              <th colSpan={5}>合计 Total</th>
-              <th className="num" data-testid="total">
-                {rm(data.total)}
-              </th>
-            </tr>
+            {(hasPaid || !hasB1) && (
+              <tr>
+                <th colSpan={5}>应付伙伴佣金 Total payable to partner</th>
+                <th className="num" data-testid="total-commission">
+                  {rm(data.totalCommission)}
+                </th>
+              </tr>
+            )}
+            {hasB1 && (
+              <tr>
+                <th colSpan={5}>{`伙伴应付 Toh's Sign`}</th>
+                <th className="num" data-testid="total-b1">
+                  {rm(data.totalB1)}
+                </th>
+              </tr>
+            )}
           </tfoot>
         </table>
       </div>
-      {b1 && <p className="footnote">{B1_NOTE}</p>}
+      {hasB1 && <p className="footnote">{B1_NOTE}</p>}
     </section>
   );
 }

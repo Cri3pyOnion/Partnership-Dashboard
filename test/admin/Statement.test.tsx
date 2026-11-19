@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -13,7 +13,7 @@ import { api } from '../../src/admin/api';
 const get = api.get as ReturnType<typeof vi.fn>;
 
 const line = (caseId: string, amount: number, over: Record<string, unknown> = {}) => ({
-  caseId, clientName: `客户 ${caseId}`, licence: '营业执照', submittedAt: '2026-11-03', amount, basis: '加价', status: '待处理', ...over,
+  caseId, clientName: `客户 ${caseId}`, licence: '营业执照', submittedAt: '2026-11-03', amount, code: 'C1', basis: '加价', status: '待处理', ...over,
 });
 
 function statement(over: Record<string, unknown> = {}) {
@@ -21,7 +21,8 @@ function statement(over: Record<string, unknown> = {}) {
     partner: { id: 'TSP0003', name: 'Lim Siew Ling', company: 'Lim & Co. <Accounting>', code: 'C1' },
     month: '2026-11',
     lines: [line('TS-2611-014', 300), line('TS-2611-016', 150.5)],
-    total: 450.5,
+    totalCommission: 450.5,
+    totalB1: 0,
     ...over,
   };
 }
@@ -63,11 +64,11 @@ describe('Statement', () => {
     expect(screen.getByText('TS-2611-016')).toBeTruthy();
     expect(screen.getByText('RM 300')).toBeTruthy();
     expect(screen.getByText('RM 150.50')).toBeTruthy();
-    expect(screen.getByTestId('total').textContent).toBe('RM 450.50');
+    expect(screen.getByTestId('total-commission').textContent).toBe('RM 450.50');
   });
 
   it('marks a pending line as 佣金待计算', async () => {
-    get.mockResolvedValue(statement({ lines: [line('TS-2611-014', 300, { pending: true })], total: 300 }));
+    get.mockResolvedValue(statement({ lines: [line('TS-2611-014', 300, { pending: true })], totalCommission: 300 }));
     renderPage();
     expect(await screen.findByText('佣金待计算')).toBeTruthy();
   });
@@ -79,11 +80,44 @@ describe('Statement', () => {
     expect(screen.queryByText("B1 金额为伙伴应付 Toh's Sign 的款项")).toBeNull();
     r.unmount();
     get.mockResolvedValue(
-      statement({ partner: { id: 'TSP0003', name: 'X', company: null, code: 'B1' }, lines: [line('TS-2611-014', 1440, { status: '待付发票' })], total: 1440 }),
+      statement({ partner: { id: 'TSP0003', name: 'X', company: null, code: 'B1' }, lines: [line('TS-2611-014', 1440, { status: '待付发票', code: 'B1' })], totalCommission: 0, totalB1: 1440 }),
     );
     renderPage();
     expect(await screen.findByText("B1 金额为伙伴应付 Toh's Sign 的款项")).toBeTruthy();
     expect(screen.getAllByText("应付 Toh's Sign").length).toBeGreaterThan(0);
+  });
+
+  it('labels each line by its own code in a mixed month and shows both totals', async () => {
+    get.mockResolvedValue(
+      statement({
+        partner: { id: 'TSP0003', name: 'X', company: null, code: 'B1' },
+        lines: [line('TS-2611-014', 300, { code: 'C1' }), line('TS-2611-016', 1440, { code: 'B1', status: '待付发票' })],
+        totalCommission: 300,
+        totalB1: 1440,
+      }),
+    );
+    renderPage();
+    const old = (await screen.findByText('TS-2611-014')).closest('tr') as HTMLElement;
+    const now = screen.getByText('TS-2611-016').closest('tr') as HTMLElement;
+    expect(within(old).queryByText("应付 Toh's Sign")).toBeNull();
+    expect(within(now).getByText("应付 Toh's Sign")).toBeTruthy();
+    expect(screen.getByTestId('total-commission').textContent).toBe('RM 300');
+    expect(screen.getByTestId('total-b1').textContent).toBe('RM 1,440');
+    expect(screen.getByText("B1 金额为伙伴应付 Toh's Sign 的款项")).toBeTruthy();
+  });
+
+  it('shows only the totals that apply', async () => {
+    get.mockResolvedValue(statement());
+    renderPage();
+    await screen.findByText('TS-2611-014');
+    expect(screen.queryByTestId('total-b1')).toBeNull();
+  });
+
+  it('hides the error banner in print', async () => {
+    get.mockResolvedValue(statement());
+    renderPage();
+    await screen.findByText('TS-2611-014');
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 
   it('has an @media print rule hiding the menu and a print button', async () => {

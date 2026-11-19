@@ -20,10 +20,10 @@ export function adminReports(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
       repo.listPartners({}), repo.listCases({ month }), repo.listCommissions({ month }),
     ]);
     const partnerOf = new Map(cases.map((x) => [x.id, x.partnerId]));
-    const sums = new Map<string, { cases: number; revenue: number; commission: number }>();
+    const sums = new Map<string, { cases: number; revenue: number; commission: number; b1Owed: number }>();
     const row = (id: string) => {
       let s = sums.get(id);
-      if (!s) sums.set(id, (s = { cases: 0, revenue: 0, commission: 0 }));
+      if (!s) sums.set(id, (s = { cases: 0, revenue: 0, commission: 0, b1Owed: 0 }));
       return s;
     };
     for (const x of cases) {
@@ -35,14 +35,15 @@ export function adminReports(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
     }
     for (const cm of comms) {
       const pid = partnerOf.get(cm.caseId);
-      if (pid) row(pid).commission += cm.amount;
+      // B1 amounts are owed to Toh's Sign, so they never join the commission sum. The row's own code decides.
+      if (pid) row(pid)[cm.code === 'B1' ? 'b1Owed' : 'commission'] += cm.amount;
     }
     return c.json(
       partners.filter((p) => sums.has(p.id)).map((p) => {
         const s = sums.get(p.id)!;
         return {
           partnerId: p.id, name: p.name, company: p.company, code: p.code,
-          cases: s.cases, revenue: round2(s.revenue), commission: round2(s.commission),
+          cases: s.cases, revenue: round2(s.revenue), commission: round2(s.commission), b1Owed: round2(s.b1Owed),
         };
       }),
     );
@@ -64,13 +65,13 @@ export function adminStatements(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
       repo.getPartner(partnerId), repo.listCases({ partnerId, month }), repo.listCommissions({ partnerId, month }),
     ]);
     if (!partner) throw new HttpError(404, '找不到伙伴');
-    const commOf = new Map<string, { amount: number; basis: string; status: string; pending?: true }>(comms.map((cm) => [cm.caseId, cm]));
+    const commOf = new Map<string, { code: string; amount: number; basis: string; status: string; pending?: true }>(comms.map((cm) => [cm.caseId, cm]));
     if (cases.some((x) => !commOf.has(x.id))) {
       const rules = (await repo.getSettings()).commissionRules;
       for (const x of cases) {
         if (commOf.has(x.id)) continue;
         const cm = previewCommission(x, partner.code, rules);
-        if (cm) commOf.set(x.id, { amount: cm.amount, basis: cm.basis, status: cm.status, pending: true });
+        if (cm) commOf.set(x.id, { code: partner.code, amount: cm.amount, basis: cm.basis, status: cm.status, pending: true });
       }
     }
     const lines = [];
@@ -79,14 +80,16 @@ export function adminStatements(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
       if (!cm) continue;
       lines.push({
         caseId: x.id, clientName: x.clientName, licence: x.licenceType, submittedAt: x.submittedAt,
-        amount: cm.amount, basis: cm.basis, status: cm.status, ...(cm.pending ? { pending: true } : {}),
+        code: cm.code, amount: cm.amount, basis: cm.basis, status: cm.status, ...(cm.pending ? { pending: true } : {}),
       });
     }
     return c.json({
       partner: { id: partner.id, name: partner.name, company: partner.company, code: partner.code },
       month,
       lines,
-      total: round2(lines.reduce((sum, l) => sum + l.amount, 0)),
+      // A1/C1 amounts are paid to the partner; B1 amounts are owed by the partner. Never one sum.
+      totalCommission: round2(lines.filter((l) => l.code !== 'B1').reduce((sum, l) => sum + l.amount, 0)),
+      totalB1: round2(lines.filter((l) => l.code === 'B1').reduce((sum, l) => sum + l.amount, 0)),
     });
   });
 

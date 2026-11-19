@@ -309,7 +309,10 @@ export function Settings() {
                     >
                       编辑
                     </button>
-                    <button type="button" className="btn" disabled={busy} onClick={() => saveStaff({ ...s, active: !s.active })}>
+                    <button type="button" className="btn" disabled={busy} onClick={() => {
+                        if (s.active && !window.confirm('确定停用？')) return;
+                        void saveStaff({ ...s, active: !s.active });
+                      }}>
                       {s.active ? '停用' : '启用'}
                     </button>
                   </div>

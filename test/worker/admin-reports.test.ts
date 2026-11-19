@@ -40,8 +40,8 @@ describe('GET /api/admin/reports/monthly', () => {
     const res = await req(clerk, 'GET', '/api/admin/reports/monthly?month=2026-11');
     expect(res.status).toBe(200);
     expect(await json(res)).toEqual([
-      { partnerId: a.id, name: 'Alice', company: 'Alice Sdn Bhd', code: 'A1', cases: 2, revenue: 2800, commission: 250 },
-      { partnerId: c.id, name: 'Charlie', company: null, code: 'C1', cases: 1, revenue: 1200, commission: 300 },
+      { partnerId: a.id, name: 'Alice', company: 'Alice Sdn Bhd', code: 'A1', cases: 2, revenue: 2800, commission: 250, b1Owed: 0 },
+      { partnerId: c.id, name: 'Charlie', company: null, code: 'C1', cases: 1, revenue: 1200, commission: 300, b1Owed: 0 },
     ]);
   });
 
@@ -77,6 +77,44 @@ describe('GET /api/admin/reports/monthly', () => {
   });
 });
 
+describe('mixed commission codes (a partner whose code changed)', () => {
+  async function mixed() {
+    const ctx = await seeded();
+    const { repo, req, a, json } = ctx;
+    // a1 and a2 were calculated as A1. Now the partner is B1 and a new case is calculated as B1.
+    await repo.updatePartner(a.id, { code: 'B1' }, 't');
+    const b = await json(await req(clerk, 'POST', '/api/admin/cases', newCase(a.id, { submittedAt: '2026-11-15', price: 1000, clientName: 'B1客户' })));
+    return { ...ctx, b };
+  }
+
+  it('monthly report splits commission and b1Owed by each commission row code', async () => {
+    const { req, a, json } = await mixed();
+    const rows = await json(await req(clerk, 'GET', '/api/admin/reports/monthly?month=2026-11'));
+    const row = rows.find((r: any) => r.partnerId === a.id);
+    expect(row.commission).toBe(250);
+    expect(row.b1Owed).toBe(800);
+  });
+
+  it('statement lines carry their own code and the totals are split', async () => {
+    const { req, a, b, a1, json } = await mixed();
+    const s = await json(await req(clerk, 'GET', `/api/admin/statements/${a.id}/2026-11`));
+    expect(s.lines.find((l: any) => l.caseId === a1.id).code).toBe('A1');
+    expect(s.lines.find((l: any) => l.caseId === b.id).code).toBe('B1');
+    expect(s.totalCommission).toBe(250);
+    expect(s.totalB1).toBe(800);
+  });
+
+  it('a preview line uses the partner code', async () => {
+    const { req, a, repo, json } = await mixed();
+    const extra = await repo.createCase({
+      partnerId: a.id, clientName: 'p', clientPhone: null, licenceType: '营业执照', council: null, missingDocs: null,
+      price: 1000, markup: null, invoiceNo: null, notesInternal: null, submittedAt: '2026-11-21',
+    }, 't');
+    const s = await json(await req(clerk, 'GET', `/api/admin/statements/${a.id}/2026-11`));
+    expect(s.lines.find((l: any) => l.caseId === extra.id)).toMatchObject({ pending: true, code: 'B1' });
+  });
+});
+
 describe('GET /api/admin/statements/:partnerId/:month', () => {
   it('returns the partner, lines and total', async () => {
     const { req, a, a1, a2, a3, json } = await seeded();
@@ -88,16 +126,17 @@ describe('GET /api/admin/statements/:partnerId/:month', () => {
     expect(s.lines.map((l: any) => l.caseId)).toEqual([a1.id, a2.id, a3.id]);
     expect(s.lines[0]).toEqual({
       caseId: a1.id, clientName: 'A1客户', licence: '营业执照', submittedAt: '2026-11-03',
-      amount: 150, basis: expect.any(String), status: '待处理',
+      amount: 150, basis: expect.any(String), status: '待处理', code: 'A1',
     });
     expect(s.lines[2].amount).toBe(0);
-    expect(s.total).toBe(250);
+    expect(s.totalCommission).toBe(250);
+    expect(s.totalB1).toBe(0);
   });
 
   it('an empty month gives no lines and total 0; unknown partner 404; bad month 400', async () => {
     const { req, a, idle, json } = await seeded();
-    expect(await json(await req(clerk, 'GET', `/api/admin/statements/${idle.id}/2026-11`))).toMatchObject({ lines: [], total: 0 });
-    expect(await json(await req(clerk, 'GET', `/api/admin/statements/${a.id}/2026-09`))).toMatchObject({ lines: [], total: 0 });
+    expect(await json(await req(clerk, 'GET', `/api/admin/statements/${idle.id}/2026-11`))).toMatchObject({ lines: [], totalCommission: 0, totalB1: 0 });
+    expect(await json(await req(clerk, 'GET', `/api/admin/statements/${a.id}/2026-09`))).toMatchObject({ lines: [], totalCommission: 0, totalB1: 0 });
     const nf = await req(clerk, 'GET', '/api/admin/statements/TSP9999/2026-11');
     expect(nf.status).toBe(404);
     expect(await json(nf)).toEqual({ error: '找不到伙伴' });
@@ -111,9 +150,9 @@ describe('GET /api/admin/statements/:partnerId/:month', () => {
       price: 1800, markup: null, invoiceNo: null, notesInternal: null, submittedAt: '2026-11-20',
     }, 't');
     const s = await json(await req(clerk, 'GET', `/api/admin/statements/${a.id}/2026-11`));
-    expect(s.lines.find((l: any) => l.caseId === extra.id)).toMatchObject({ amount: 150, status: '待处理', pending: true });
+    expect(s.lines.find((l: any) => l.caseId === extra.id)).toMatchObject({ amount: 150, status: '待处理', pending: true, code: 'A1' });
     expect(s.lines.filter((l: any) => l.pending)).toHaveLength(1);
-    expect(s.total).toBe(400);
+    expect(s.totalCommission).toBe(400);
     expect(await repo.getCommission(extra.id)).toBeNull();
   });
 

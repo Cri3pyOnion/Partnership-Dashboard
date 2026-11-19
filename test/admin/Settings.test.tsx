@@ -67,11 +67,25 @@ describe('Settings', () => {
   it('lists staff and shows the last-admin error from the server', async () => {
     const user = userEvent.setup();
     put.mockRejectedValue(Object.assign(new Error('x'), { error: '至少需要一位管理员' }));
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
     renderPage();
     const row = (await screen.findByText('boss@tohsign.com')).closest('tr') as HTMLElement;
     await user.click(within(row).getByRole('button', { name: '停用' }));
     expect((await screen.findByRole('alert')).textContent).toContain('至少需要一位管理员');
     expect(put).toHaveBeenCalledWith('/api/admin/staff/boss%40tohsign.com', { name: 'Boss', role: 'admin', team: 'IT', active: false });
+  });
+
+  it('asks before deactivating a staff member', async () => {
+    const user = userEvent.setup();
+    put.mockResolvedValue({});
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true);
+    renderPage();
+    const row = (await screen.findByText('clerk@tohsign.com')).closest('tr') as HTMLElement;
+    await user.click(within(row).getByRole('button', { name: '停用' }));
+    expect(confirm).toHaveBeenCalledWith('确定停用？');
+    expect(put).not.toHaveBeenCalled();
+    await user.click(within(row).getByRole('button', { name: '停用' }));
+    await waitFor(() => expect(put).toHaveBeenCalled());
   });
 
   it('shows the self-demotion error when editing a role', async () => {
