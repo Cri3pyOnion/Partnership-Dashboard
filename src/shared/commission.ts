@@ -57,7 +57,7 @@ export function calcCommission(
 }
 
 /** 已支付 and 已结清 are final: a recalculation never rewrites the row. */
-export const isFrozen = (cm: Commission | null, opts: { unsettle?: boolean } = {}): cm is Commission =>
+export const isFrozen = (cm: Commission | null, opts: { unsettle?: boolean } = {}): boolean =>
   cm?.status === '已支付' || (cm?.status === '已结清' && !opts.unsettle);
 
 /**
@@ -71,7 +71,7 @@ export function applyCommission(
   code: PartnerCode,
   opts: { unsettle?: boolean } = {},
 ): Commission {
-  if (isFrozen(existing, opts)) return existing;
+  if (existing && isFrozen(existing, opts)) return existing;
   return {
     caseId,
     code: existing?.code ?? code,

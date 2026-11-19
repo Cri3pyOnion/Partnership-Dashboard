@@ -45,7 +45,7 @@ export function createStaffMock(partners: Partner[], cases: Case[]) {
   /** Mirrors the Worker: recompute from the case and the rules; 已支付 and 已结清 stay frozen (unless un-settled). */
   function recalc(c: Case, opts: { unsettle?: boolean } = {}): Commission {
     const prev = commissions.get(c.id) ?? null;
-    if (isFrozen(prev, opts)) return prev;
+    if (prev && isFrozen(prev, opts)) return prev;
     const code = prev?.code ?? codeOf(c);
     const r = calcCommission(c, code, settings.commissionRules);
     const next: Commission = { caseId: c.id, code, amount: r.amount, basis: r.basis, status: r.status, paidAt: null, paidBy: null };

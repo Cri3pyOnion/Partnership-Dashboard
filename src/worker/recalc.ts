@@ -24,7 +24,7 @@ export function nextCommission(
   rules: CommissionRules,
   opts: RecalcOptions = {},
 ): Commission {
-  if (isFrozen(existing, opts)) return existing;
+  if (existing && isFrozen(existing, opts)) return existing;
   const code = existing?.code ?? partnerCode;
   return applyCommission(caseId, existing, calcCommission(c, code, rules), code, opts);
 }
