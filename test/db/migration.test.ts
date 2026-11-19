@@ -99,3 +99,24 @@ describe('ids never truncate on overflow', () => {
     expect(r.rows[0].id).toBe('TS-2611-1000');
   });
 });
+
+describe('guarded revokes with Supabase-style roles', () => {
+  it('strips anon/authenticated privileges but keeps service_role', async () => {
+    const db = new PGlite();
+    await db.exec(`
+      create role anon; create role authenticated; create role service_role;
+      grant usage on schema public to anon, authenticated, service_role;
+      alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
+      alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
+      alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;
+    `);
+    await db.exec(migration);
+    const b = async (sql: string) =>
+      Object.values((await db.query<Record<string, unknown>>(sql)).rows[0])[0];
+    for (const role of ['anon', 'authenticated']) {
+      expect(await b(`select has_table_privilege('${role}','public.partners','SELECT')`)).toBe(false);
+      expect(await b(`select has_function_privilege('${role}','public.next_partner_id()','EXECUTE')`)).toBe(false);
+    }
+    expect(await b(`select has_function_privilege('service_role','public.next_partner_id()','EXECUTE')`)).toBe(true);
+  });
+});
