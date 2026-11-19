@@ -4,6 +4,7 @@ import { requireStaff } from './access';
 import type { AppEnv, Env } from './env';
 import { lazyRepo } from './lazy-repo';
 import type { Repo } from './repo';
+import { adminPartners } from './routes/admin-partners';
 import { partnerView } from './routes/partner-view';
 import { SupabaseRepo } from './supabase-repo';
 
@@ -22,6 +23,8 @@ export function createApp(deps: { makeRepo?: (env: Env) => Repo; jwks?: JWTVerif
     const { email, name, role, team } = c.var.staff;
     return c.json({ email, name, role, team });
   });
+
+  app.route('/api/admin/partners', adminPartners(deps.jwks));
 
   return app;
 }

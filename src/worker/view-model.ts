@@ -1,7 +1,10 @@
 // The partner view model. This is the ONLY place that chooses which partner data reaches
 // the public /p/:token page. Every field is copied by name; objects are never spread.
 import type { StepIndex } from '../shared/status';
+import { whatsappLink } from '../shared/whatsapp';
 import type { Case, Commission, CommissionStatus, Partner, PartnerCode } from '../shared/types';
+
+export { whatsappLink };
 
 export interface PartnerViewCase {
   id: string;
@@ -41,13 +44,6 @@ function klMonth(s: string): string {
 
 /** Avoid float drift when summing RM amounts with cents. */
 const add = (a: number, b: number): number => Math.round((a + b) * 100) / 100;
-
-/** wa.me link to the marketing number with a prefilled greeting; '' when no number is set. */
-export function whatsappLink(number: string, text: string): string {
-  const digits = number.replace(/\D/g, '');
-  if (!digits) return '';
-  return `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
-}
 
 export function buildPartnerView(p: Partner, cases: Case[], comms: Commission[], whatsapp: string): PartnerView {
   const b1 = p.code === 'B1';
