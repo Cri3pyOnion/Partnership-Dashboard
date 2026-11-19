@@ -1,11 +1,12 @@
 import { Hono } from 'hono';
-import { SignJWT, createLocalJWKSet, exportJWK, generateKeyPair } from 'jose';
+import { SignJWT, UnsecuredJWT, createLocalJWKSet, exportJWK, generateKeyPair } from 'jose';
 import type { CryptoKey, JWTVerifyGetKey } from 'jose';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Staff } from '../../src/shared/types';
 import { requireStaff } from '../../src/worker/access';
 import type { AppEnv, Env } from '../../src/worker/env';
 import { createApp } from '../../src/worker/index';
+import { lazyRepo } from '../../src/worker/lazy-repo';
 import { FakeRepo } from '../fake-repo';
 
 const TEAM = 'tohs.cloudflareaccess.com';
@@ -30,14 +31,15 @@ beforeAll(async () => {
 
 function sign(
   email: string | undefined,
-  o: { aud?: string; iss?: string; exp?: string | number; key?: CryptoKey } = {},
+  o: { aud?: string; iss?: string; exp?: string | number | null; key?: CryptoKey } = {},
 ) {
   const jwt = new SignJWT(email === undefined ? {} : { email })
     .setProtectedHeader({ alg: 'RS256', kid: 'k1' })
     .setIssuer(o.iss ?? `https://${TEAM}`)
     .setAudience(o.aud ?? AUD)
     .setIssuedAt()
-    .setExpirationTime(o.exp ?? '5m');
+    ;
+  if (o.exp !== null) jwt.setExpirationTime(o.exp ?? '5m');
   return jwt.sign(o.key ?? privateKey);
 }
 
@@ -97,6 +99,31 @@ describe('requireStaff', () => {
     expect((await call(app, '/any', await sign(undefined))).status).toBe(401);
   });
 
+  it('401 on alg none, HS256 and missing exp', async () => {
+    const app = buildApp(await seeded());
+    const exp = Math.floor(Date.now() / 1000) + 300;
+    const none = new UnsecuredJWT({ email: admin.email }).setIssuer(`https://${TEAM}`).setAudience(AUD).setExpirationTime(exp).encode();
+    expect((await call(app, '/any', none)).status).toBe(401);
+    const hs = await new SignJWT({ email: admin.email })
+      .setProtectedHeader({ alg: 'HS256', kid: 'k1' })
+      .setIssuer(`https://${TEAM}`).setAudience(AUD).setExpirationTime('5m')
+      .sign(new TextEncoder().encode('0123456789abcdef0123456789abcdef'));
+    expect((await call(app, '/any', hs)).status).toBe(401);
+    expect((await call(app, '/any', await sign(admin.email, { exp: null }))).status).toBe(401);
+  });
+
+  it('401 (fail closed) when ACCESS_AUD or ACCESS_TEAM_DOMAIN is empty', async () => {
+    const app = buildApp(await seeded());
+    const h = { 'Cf-Access-Jwt-Assertion': await sign(admin.email) };
+    expect((await app.request('/any', { headers: h }, { ...ENV, ACCESS_AUD: '' })).status).toBe(401);
+    expect((await app.request('/any', { headers: h }, { ...ENV, ACCESS_TEAM_DOMAIN: '' })).status).toBe(401);
+  });
+
+  it('200 for an admin on a staff-level route', async () => {
+    const res = await call(buildApp(await seeded()), '/any', await sign(admin.email));
+    expect(res.status).toBe(200);
+  });
+
   it('403 when email is not staff', async () => {
     const res = await call(buildApp(await seeded()), '/any', await sign('nobody@example.com'));
     expect(res.status).toBe(403);
@@ -153,5 +180,28 @@ describe('GET /api/admin/me', () => {
     const app = createApp({ makeRepo: () => new FakeRepo(), jwks });
     const res = await app.request('/api/admin/me', {}, ENV);
     expect(res.status).toBe(401);
+  });
+});
+
+describe('lazy repo', () => {
+  it('does not build the repo until a method is called, then reuses it', async () => {
+    let made = 0;
+    const repo = lazyRepo(() => (made++, new FakeRepo()));
+    expect(made).toBe(0);
+    expect(await repo.getStaff('x@y.com')).toBeNull();
+    await repo.listStaff();
+    expect(made).toBe(1);
+  });
+
+  it('surfaces construction errors only on use', async () => {
+    const repo = lazyRepo(() => { throw new Error('supabaseUrl is required.'); });
+    await expect(repo.getStaff('x@y.com')).rejects.toThrow('supabaseUrl is required.');
+  });
+
+  it('createApp() with empty Supabase env still answers routes that skip the repo', async () => {
+    const empty = { ...ENV, SUPABASE_URL: '', SUPABASE_SERVICE_ROLE_KEY: '' } as Env;
+    const app = createApp();
+    expect((await app.request('/nope', {}, empty)).status).toBe(404);
+    expect((await app.request('/api/admin/me', {}, empty)).status).toBe(401);
   });
 });

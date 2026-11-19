@@ -25,10 +25,14 @@ export function requireStaff(opts: { role?: 'admin'; jwks?: JWTVerifyGetKey } = 
     const token = c.req.header('Cf-Access-Jwt-Assertion');
     if (!token) return c.json({ error: '未登录' }, 401);
 
+    if (!c.env.ACCESS_AUD || !c.env.ACCESS_TEAM_DOMAIN) return c.json({ error: '未登录' }, 401);
+
     let email: string;
     try {
       const jwks = opts.jwks ?? remoteJwks(c.env.ACCESS_TEAM_DOMAIN);
       const { payload } = await jwtVerify(token, jwks, {
+        algorithms: ['RS256'],
+        requiredClaims: ['exp'],
         audience: c.env.ACCESS_AUD,
         issuer: `https://${c.env.ACCESS_TEAM_DOMAIN}`,
       });

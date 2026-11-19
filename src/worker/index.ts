@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { JWTVerifyGetKey } from 'jose';
 import { requireStaff } from './access';
 import type { AppEnv, Env } from './env';
+import { lazyRepo } from './lazy-repo';
 import type { Repo } from './repo';
 import { SupabaseRepo } from './supabase-repo';
 
@@ -10,7 +11,7 @@ export function createApp(deps: { makeRepo?: (env: Env) => Repo; jwks?: JWTVerif
   const app = new Hono<AppEnv>();
 
   app.use('*', async (c, next) => {
-    c.set('repo', makeRepo(c.env));
+    c.set('repo', lazyRepo(() => makeRepo(c.env)));
     await next();
   });
 
