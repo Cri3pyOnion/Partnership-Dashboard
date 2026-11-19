@@ -13,6 +13,9 @@ interface Snapshot {
   partnerId: string;
 }
 
+/** Backstop: a snapshot nobody refreshes or drops still dies after a day. */
+export const SNAPSHOT_TTL_SECONDS = 86400;
+
 const key = async (token: string) => `view:${await hashToken(token)}`;
 
 /** 'YYYY-MM-DD HH:mm' in Asia/Kuala_Lumpur. */
@@ -47,7 +50,7 @@ async function readSnapshot(env: Env, k: string): Promise<Snapshot | null> {
 async function store(env: Env, repo: Repo, partnerId: string, token: string, snap: Snapshot): Promise<void> {
   const k = await key(token);
   try {
-    await env.VIEWS.put(k, JSON.stringify(snap));
+    await env.VIEWS.put(k, JSON.stringify(snap), { expirationTtl: SNAPSHOT_TTL_SECONDS });
   } catch {
     return; // nothing was written, nothing to verify
   }

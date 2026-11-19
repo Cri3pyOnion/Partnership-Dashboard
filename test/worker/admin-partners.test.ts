@@ -3,6 +3,8 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import type { Staff } from '../../src/shared/types';
 import { linkMessage, whatsappLink } from '../../src/shared/whatsapp';
 import type { Env } from '../../src/worker/env';
+import { RepoError } from '../../src/worker/repo';
+import { hashToken } from '../../src/worker/token';
 import { createApp } from '../../src/worker/index';
 import { FakeRepo } from '../fake-repo';
 import { caseInput, partnerInput } from '../repo/repo.contract';
@@ -272,6 +274,19 @@ describe('GET /inactive', () => {
     expect(names).toEqual(['NoCaseOld', 'OldCase']);
   });
 
+  it('makes exactly one listCases call', async () => {
+    const { req, repo } = await setup();
+    for (let i = 0; i < 4; i++) {
+      const p = await repo.createPartner(partnerInput(), 't');
+      await repo.updatePartner(p.id, { status: '活跃' }, 't');
+    }
+    let n = 0;
+    const real = repo.listCases.bind(repo);
+    repo.listCases = async (f) => { n++; return real(f); };
+    expect((await req(clerk, 'GET', '/inactive')).status).toBe(200);
+    expect(n).toBe(1);
+  });
+
   it('respects settings.inactiveDays', async () => {
     const { req, repo } = await setup();
     const p = await repo.createPartner(partnerInput(), 't');
@@ -363,30 +378,47 @@ describe('reset-link', () => {
     expect(await res.json()).toEqual({ error: '伙伴尚未批准' });
   });
 
-  it('commits the new token before dropping the old page', async () => {
-    const { req, repo, p, oldToken } = await approved();
-    let seenAtDrop: string | null | undefined;
-    const env = kvWithDelete(async (k, real) => {
-      seenAtDrop = (await repo.getPartner(p.id))?.viewToken;
-      await real.delete(k);
-    });
-    expect((await req(clerk, 'POST', `/${p.id}/reset-link`, undefined, env)).status).toBe(200);
-    expect(seenAtDrop).toBeTruthy();
-    expect(seenAtDrop).not.toBe(oldToken);
-  });
-
-  it('retries the drop 3 times, then 503, with the new token still saved', async () => {
-    const { req, repo, p, oldToken } = await approved();
+  it('R26: three failed drops give 503 with nothing committed; a later reset revokes the original link', async () => {
+    const { req, app, repo, p, oldToken } = await approved();
     let drops = 0;
     const env = kvWithDelete(async () => { drops++; throw new Error('kv down'); });
     const res = await req(clerk, 'POST', `/${p.id}/reset-link`, undefined, env);
     expect(res.status).toBe(503);
     expect(await res.json()).toEqual({ error: '旧链接清除失败，请再试一次' });
     expect(drops).toBe(3);
-    const saved = (await repo.getPartner(p.id))!.viewToken;
-    expect(saved).toMatch(/^[A-Za-z0-9_-]{43}$/);
-    expect(saved).not.toBe(oldToken);
-    expect(repo.auditLog.at(-1)?.action).toBe('partner.reset_link');
+    expect((await repo.getPartner(p.id))!.viewToken).toBe(oldToken);
+    expect((await app.request(`/p/${oldToken}`, {}, ENV)).status).toBe(200);
+    const again = await req(clerk, 'POST', `/${p.id}/reset-link`);
+    expect(again.status).toBe(200);
+    expect((await app.request(`/p/${oldToken}`, {}, ENV)).status).toBe(404);
+    expect((await repo.getPartner(p.id))!.viewToken).not.toBe(oldToken);
+  });
+
+  it('drops the old page again after the commit, removing a rebuild that slipped in between', async () => {
+    const { req, app, repo, p, oldToken } = await approved();
+    let calls = 0;
+    const env = kvWithDelete(async (k, real) => {
+      await real.delete(k);
+      if (++calls === 1) {
+        // A viewer rebuilds the old page after the first drop, before the commit.
+        expect((await app.request(`/p/${oldToken}`, {}, ENV)).status).toBe(200);
+      }
+    });
+    const res = await req(clerk, 'POST', `/${p.id}/reset-link`, undefined, env);
+    expect(res.status).toBe(200);
+    expect(calls).toBe(2);
+    expect((await repo.getPartner(p.id))!.viewToken).not.toBe(oldToken);
+    expect((await app.request(`/p/${oldToken}`, {}, ENV)).status).toBe(404);
+  });
+
+  it('a failing second drop never fails the response', async () => {
+    const { req, p } = await approved();
+    let calls = 0;
+    const env = kvWithDelete(async (k, real) => {
+      if (++calls > 1) throw new Error('kv down');
+      await real.delete(k);
+    });
+    expect((await req(clerk, 'POST', `/${p.id}/reset-link`, undefined, env)).status).toBe(200);
   });
 
   it('succeeds when the drop works on the third try', async () => {
@@ -397,7 +429,127 @@ describe('reset-link', () => {
       await real.delete(k);
     });
     expect((await req(clerk, 'POST', `/${p.id}/reset-link`, undefined, env)).status).toBe(200);
-    expect(drops).toBe(3);
+    expect(drops).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe('R27 side effects before audit', () => {
+  const failAudit = (repo: FakeRepo) => {
+    repo.audit = async () => { throw new RepoError('audit down'); };
+  };
+  const failRebuild = (repo: FakeRepo) => {
+    repo.listCases = async () => { throw new RepoError('cases down'); };
+  };
+  const kvKey = async (token: string) => `view:${await hashToken(token)}`;
+
+  it('audit failure after PATCH still gives 200 and the page was refreshed', async () => {
+    const { req, app, repo } = await setup();
+    const p = await repo.createPartner(partnerInput(), 't');
+    const { link } = (await (await req(admin, 'POST', `/${p.id}/approve`)).json()) as any;
+    const token = LINK_RE.exec(link)![1];
+    failAudit(repo);
+    const res = await req(clerk, 'PATCH', `/${p.id}`, { name: 'After Audit Fail' });
+    expect(res.status).toBe(200);
+    expect(await (await app.request(`/p/${token}`, {}, ENV)).text()).toContain('After Audit Fail');
+  });
+
+  it('audit failure after approve still returns the link, and the page is live', async () => {
+    const { req, app, repo } = await setup();
+    const p = await repo.createPartner(partnerInput(), 't');
+    failAudit(repo);
+    const res = await req(admin, 'POST', `/${p.id}/approve`);
+    expect(res.status).toBe(200);
+    const token = LINK_RE.exec(((await res.json()) as any).link)![1];
+    expect((await repo.getPartner(p.id))!.status).toBe('活跃');
+    expect((await app.request(`/p/${token}`, {}, ENV)).status).toBe(200);
+  });
+
+  it('audit failure after POST and reset still succeeds', async () => {
+    const { req, repo } = await setup();
+    const p = await repo.createPartner(partnerInput(), 't');
+    await req(admin, 'POST', `/${p.id}/approve`);
+    failAudit(repo);
+    expect((await req(clerk, 'POST', '', body())).status).toBe(201);
+    expect((await req(clerk, 'POST', `/${p.id}/reset-link`)).status).toBe(200);
+  });
+
+  it('a failed refresh drops the stored page so the next view rebuilds', async () => {
+    const { req, repo } = await setup();
+    const p = await repo.createPartner(partnerInput(), 't');
+    const { link } = (await (await req(admin, 'POST', `/${p.id}/approve`)).json()) as any;
+    const token = LINK_RE.exec(link)![1];
+    expect(await ENV.VIEWS.get(await kvKey(token))).not.toBeNull();
+    failRebuild(repo);
+    const res = await req(clerk, 'PATCH', `/${p.id}`, { name: 'Stale Risk' });
+    expect(res.status).toBe(200);
+    expect(await ENV.VIEWS.get(await kvKey(token))).toBeNull();
+  });
+
+  it('approve with a failing refresh still returns the link', async () => {
+    const { req, repo } = await setup();
+    const p = await repo.createPartner(partnerInput(), 't');
+    failRebuild(repo);
+    const res = await req(admin, 'POST', `/${p.id}/approve`);
+    expect(res.status).toBe(200);
+    expect(LINK_RE.test(((await res.json()) as any).link)).toBe(true);
+  });
+});
+
+describe('KV snapshot TTL', () => {
+  it('every put carries expirationTtl 86400', async () => {
+    const { req, repo } = await setup();
+    const p = await repo.createPartner(partnerInput(), 't');
+    const opts: unknown[] = [];
+    const kv = new Proxy(ENV.VIEWS, {
+      get(t, prop) {
+        if (prop === 'put') return (k: string, v: string, o?: unknown) => { opts.push(o); return t.put(k, v, o as any); };
+        const v = Reflect.get(t, prop);
+        return typeof v === 'function' ? v.bind(t) : v;
+      },
+    });
+    await req(admin, 'POST', `/${p.id}/approve`, undefined, { ...ENV, VIEWS: kv } as Env);
+    expect(opts.length).toBeGreaterThan(0);
+    expect(opts).toEqual(opts.map(() => ({ expirationTtl: 86400 })));
+  });
+});
+
+describe('input limits and config', () => {
+  it('rejects text over 200 characters', async () => {
+    const { req } = await setup();
+    const res = await req(clerk, 'POST', '', body({ company: 'x'.repeat(201), name: 'n'.repeat(201) }));
+    expect(res.status).toBe(400);
+    const { fields } = (await res.json()) as any;
+    expect(fields.company).toBe('内容过长');
+    expect(fields.name).toBe('内容过长');
+    expect((await req(clerk, 'POST', '', body({ company: 'x'.repeat(200) }))).status).toBe(201);
+  });
+
+  it('empty PATCH is 400', async () => {
+    const { req, repo } = await setup();
+    const p = await repo.createPartner(partnerInput(), 't');
+    const res = await req(clerk, 'PATCH', `/${p.id}`, {});
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: '没有需要更新的栏位' });
+  });
+
+  it('missing PUBLIC_BASE_URL gives 503 before anything is written', async () => {
+    const { req, repo } = await setup();
+    const p = await repo.createPartner(partnerInput(), 't');
+    const env = { ...ENV, PUBLIC_BASE_URL: '' } as Env;
+    const res = await req(admin, 'POST', `/${p.id}/approve`, undefined, env);
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ error: '系统设置不完整' });
+    expect((await repo.getPartner(p.id))!.status).toBe('待审核');
+    expect((await repo.getPartner(p.id))!.viewToken).toBeNull();
+  });
+
+  it('missing PUBLIC_BASE_URL on reset keeps the token', async () => {
+    const { req, repo } = await setup();
+    const p = await repo.createPartner(partnerInput(), 't');
+    const { link } = (await (await req(admin, 'POST', `/${p.id}/approve`)).json()) as any;
+    const res = await req(clerk, 'POST', `/${p.id}/reset-link`, undefined, { ...ENV, PUBLIC_BASE_URL: undefined } as unknown as Env);
+    expect(res.status).toBe(503);
+    expect(`/p/${(await repo.getPartner(p.id))!.viewToken}`).toBe(new URL(link).pathname);
   });
 });
 

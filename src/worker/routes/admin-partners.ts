@@ -15,6 +15,8 @@ const TEAMS: Team[] = ['Transmission', '市场部', 'IT'];
 const SOURCES: Source[] = ['上门', '线上'];
 const STATUSES: PartnerStatus[] = ['待审核', '活跃', '不活跃'];
 const FORBIDDEN = ['id', 'viewToken', 'registeredAt'];
+const MAX_TEXT = 200;
+const TEXT_KEYS = ['name', 'phone', 'email', 'tin', 'company', 'referralName', 'bankName', 'bankAccount'];
 const BAD_FIELDS = '请检查红色栏位';
 
 type Fields = Record<string, string>;
@@ -39,6 +41,7 @@ function validatePartner(raw: unknown, mode: 'create' | 'patch', current?: Partn
   const fields: Fields = {};
   const out: Partial<Partner> = {};
   const want = (k: string) => mode === 'create' || has(b, k);
+  const tooLong = TEXT_KEYS.filter((k) => typeof b[k] === 'string' && (b[k] as string).length > MAX_TEXT);
 
   for (const k of FORBIDDEN) if (has(b, k)) fields[k] = '不可修改';
   if (mode === 'create' && has(b, 'status')) fields.status = '不可修改';
@@ -100,7 +103,12 @@ function validatePartner(raw: unknown, mode: 'create' | 'patch', current?: Partn
     else fields.status = STATUSES.includes(b.status as PartnerStatus) ? '不能改为此状态' : '状态不正确';
   }
 
+  for (const k of tooLong) {
+    fields[k] = '内容过长';
+    delete (out as Record<string, unknown>)[k];
+  }
   if (Object.keys(fields).length) throw new HttpError(400, BAD_FIELDS, fields);
+  if (mode === 'patch' && Object.keys(out).length === 0) throw new HttpError(400, '没有需要更新的栏位');
   return out;
 }
 
@@ -112,7 +120,12 @@ async function readJson(req: Request): Promise<unknown> {
   }
 }
 
-const linkFor = (env: Env, token: string) => `${(env.PUBLIC_BASE_URL ?? '').replace(/\/+$/, '')}/p/${token}`;
+/** Link for a token. A missing base URL is a setup error, never a relative link. */
+function linkFor(env: Env, token: string): string {
+  const base = (env.PUBLIC_BASE_URL ?? '').trim().replace(/\/+$/, '');
+  if (!base) throw new HttpError(503, '系统设置不完整');
+  return `${base}/p/${token}`;
+}
 
 async function mustGet(repo: Repo, id: string): Promise<Partner> {
   const p = await repo.getPartner(id);
@@ -120,13 +133,45 @@ async function mustGet(repo: Repo, id: string): Promise<Partner> {
   return p;
 }
 
-/** The write is committed by now, so a failed page rebuild must not turn the response into an error. */
-async function refreshQuietly(env: Env, repo: Repo, id: string): Promise<void> {
+/**
+ * Rebuild the stored page after a committed write. If the rebuild fails, drop the page instead so
+ * the next view rebuilds it rather than serving outdated data. Never fails the response.
+ */
+async function refreshOrDrop(env: Env, repo: Repo, id: string, token: string | null): Promise<void> {
   try {
     await refreshPartnerView(env, repo, id);
+    return;
   } catch (err) {
-    console.error('refreshPartnerView failed', err);
+    console.error('refreshPartnerView failed:', err instanceof Error ? err.message : 'unknown');
   }
+  if (!token) return;
+  try {
+    await dropPartnerView(env, token);
+  } catch (err) {
+    console.error('dropPartnerView failed:', err instanceof Error ? err.message : 'unknown');
+  }
+}
+
+/** Audit is last: the write is already committed, so a failure is logged (no token) and ignored. */
+async function auditQuietly(repo: Repo, by: string, action: string, id: string, details?: object): Promise<void> {
+  try {
+    await repo.audit(by, action, 'partner', id, details);
+  } catch (err) {
+    console.error(`audit ${action} failed for ${id}:`, err instanceof Error ? err.message : 'unknown');
+  }
+}
+
+/** Drop a page up to 3 times; true when one try worked. */
+async function dropWithRetry(env: Env, token: string): Promise<boolean> {
+  for (let i = 0; i < 3; i++) {
+    try {
+      await dropPartnerView(env, token);
+      return true;
+    } catch {
+      // retry
+    }
+  }
+  return false;
 }
 
 /** 'YYYY-MM-DD' of a date or timestamp in Asia/Kuala_Lumpur. */
@@ -152,25 +197,30 @@ export function adminPartners(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
     const input = validatePartner(await readJson(c.req.raw), 'create') as NewPartner;
     const repo = c.var.repo;
     const p = await repo.createPartner(input, c.var.staff.email);
-    await repo.audit(c.var.staff.email, 'partner.create', 'partner', p.id, { code: p.code, name: p.name });
+    await auditQuietly(repo, c.var.staff.email, 'partner.create', p.id, { code: p.code, name: p.name });
     return c.json(p, 201);
   });
 
   // Registered before /:id so "inactive" is not read as an id.
   r.get('/inactive', async (c) => {
     const repo = c.var.repo;
-    const [settings, active] = await Promise.all([repo.getSettings(), repo.listPartners({ status: '活跃' })]);
+    // Three calls in total, whatever the number of partners (subrequest cap).
+    const [settings, active, allCases] = await Promise.all([
+      repo.getSettings(), repo.listPartners({ status: '活跃' }), repo.listCases({}),
+    ]);
+    const newestBy = new Map<string, string>();
+    for (const x of allCases) {
+      const d = klDay(x.submittedAt);
+      const cur = newestBy.get(x.partnerId);
+      if (cur === undefined || d > cur) newestBy.set(x.partnerId, d);
+    }
     const today = klDay(new Date());
     const cutoff = new Date(`${today}T00:00:00Z`);
     cutoff.setUTCDate(cutoff.getUTCDate() - settings.inactiveDays);
     const cut = cutoff.toISOString().slice(0, 10);
     const stale: Partner[] = [];
     for (const p of active) {
-      const cases = await repo.listCases({ partnerId: p.id });
-      const newest = cases.reduce<string | null>((m, x) => {
-        const d = klDay(x.submittedAt);
-        return m === null || d > m ? d : m;
-      }, null);
+      const newest = newestBy.get(p.id) ?? null;
       if ((newest ?? klDay(p.registeredAt)) < cut) stale.push(p);
     }
     return c.json(stale);
@@ -192,8 +242,8 @@ export function adminPartners(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
     const current = await mustGet(repo, id);
     const patch = validatePartner(await readJson(c.req.raw), 'patch', current);
     const updated = await repo.updatePartner(id, patch, c.var.staff.email);
-    await repo.audit(c.var.staff.email, 'partner.update', 'partner', id, { fields: Object.keys(patch) });
-    await refreshQuietly(c.env, repo, id);
+    await refreshOrDrop(c.env, repo, id, updated.viewToken);
+    await auditQuietly(repo, c.var.staff.email, 'partner.update', id, { fields: Object.keys(patch) });
     return c.json(updated);
   });
 
@@ -203,12 +253,11 @@ export function adminPartners(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
     const p = await mustGet(repo, id);
     if (p.status === '活跃') throw new HttpError(400, '伙伴已是活跃状态');
     const token = p.viewToken ?? newViewToken();
+    const link = linkFor(c.env, token); // fails before anything is written when the base URL is missing
     await repo.updatePartner(id, { status: '活跃', viewToken: token }, c.var.staff.email);
-    await repo.audit(c.var.staff.email, 'partner.approve', 'partner', id, {
-      from: p.status, issuedLink: p.viewToken === null,
-    });
-    await refreshQuietly(c.env, repo, id);
-    return c.json({ link: linkFor(c.env, token) });
+    await refreshOrDrop(c.env, repo, id, token);
+    await auditQuietly(repo, c.var.staff.email, 'partner.approve', id, { from: p.status, issuedLink: p.viewToken === null });
+    return c.json({ link });
   });
 
   r.post('/:id/reset-link', async (c) => {
@@ -217,22 +266,16 @@ export function adminPartners(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
     const p = await mustGet(repo, id);
     const old = p.viewToken;
     if (!old) throw new HttpError(400, '伙伴尚未批准');
-    // R24: commit the new token first, so the old page can only be dropped once it is already dead.
     const token = newViewToken();
+    const link = linkFor(c.env, token);
+    // R26: kill the original page first. If that fails nothing is committed, so a retry targets the same token.
+    if (!(await dropWithRetry(c.env, old))) return c.json({ error: '旧链接清除失败，请再试一次' }, 503);
     await repo.updatePartner(id, { viewToken: token }, c.var.staff.email);
-    await repo.audit(c.var.staff.email, 'partner.reset_link', 'partner', id);
-    let dropped = false;
-    for (let i = 0; i < 3 && !dropped; i++) {
-      try {
-        await dropPartnerView(c.env, old);
-        dropped = true;
-      } catch {
-        // retry
-      }
-    }
-    if (!dropped) return c.json({ error: '旧链接清除失败，请再试一次' }, 503);
-    await refreshQuietly(c.env, repo, id);
-    return c.json({ link: linkFor(c.env, token) });
+    await refreshOrDrop(c.env, repo, id, token);
+    // A view may have rebuilt the old page between the first drop and the commit; best effort, never fails.
+    await dropWithRetry(c.env, old);
+    await auditQuietly(repo, c.var.staff.email, 'partner.reset_link', id);
+    return c.json({ link });
   });
 
   return r;
