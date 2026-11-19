@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { JWTVerifyGetKey } from 'jose';
 import { requireStaff } from './access';
+import { staffCsrf } from './csrf';
 import type { AppEnv, Env } from './env';
 import { lazyRepo } from './lazy-repo';
 import type { Repo } from './repo';
@@ -28,6 +29,9 @@ export function createApp(deps: { makeRepo?: (env: Env) => Repo; makeStorage?: (
 
   app.route('/', partnerView);
   app.route('/', adminApp);
+
+  // Before any staff route: a write from another site is refused before auth or the repo.
+  app.use('/api/admin/*', ...staffCsrf());
 
   app.get('/api/admin/me', requireStaff({ jwks: deps.jwks }), (c) => {
     const { email, name, role, team } = c.var.staff;

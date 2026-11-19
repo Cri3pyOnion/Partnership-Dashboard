@@ -8,8 +8,13 @@ export const MAX_TEXT = 200;
 
 export const has = (o: Record<string, unknown>, k: string) => Object.prototype.hasOwnProperty.call(o, k);
 
-/** The JSON body as a plain object, or a 400. */
+/**
+ * The JSON body, or a 400. The body must be sent as Content-Type: application/json (else 415):
+ * a cross-site page cannot send that type without a CORS preflight, which this API never answers.
+ */
 export async function readJson(req: Request): Promise<unknown> {
+  const type = (req.headers.get('Content-Type') ?? '').split(';')[0].trim().toLowerCase();
+  if (type !== 'application/json') throw new HttpError(415, '请求格式必须是 JSON');
   try {
     return await req.json();
   } catch {

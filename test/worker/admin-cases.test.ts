@@ -115,7 +115,7 @@ describe('lifecycle', () => {
     const paid = await json(await req(clerk, 'PATCH', `/api/admin/cases/${c.id}`, { clientPaid: true }));
     expect(paid.commission).toMatchObject({ amount: 150, status: '可发放' });
     expect(paid.clientPaidAt).toBe(kl(new Date()));
-    const mp = await req(admin, 'POST', `/api/admin/commissions/${c.id}/mark-paid`);
+    const mp = await req(admin, 'POST', `/api/admin/commissions/${c.id}/mark-paid`, { expectedAmount: 150 });
     expect(mp.status).toBe(200);
     expect(await json(mp)).toMatchObject({ status: '已支付', paidBy: admin.email });
     const after = await json(await req(clerk, 'PATCH', `/api/admin/cases/${c.id}`, { price: 900 }));

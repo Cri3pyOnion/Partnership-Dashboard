@@ -15,6 +15,10 @@ export const DB_DOWN = { error: '数据库暂时无法连接，请稍后再试' 
 export const admin: Staff = { email: 'boss@tohsign.com', name: 'Boss', role: 'admin', team: 'IT', active: true };
 export const clerk: Staff = { email: 'clerk@tohsign.com', name: 'Clerk', role: 'staff', team: '市场部', active: true };
 
+/** What a browser adds to a same-origin write (the CSRF check needs one of the two). */
+export const SAME_ORIGIN: Record<string, string> = { Origin: 'https://partners.tohssignlicense.com', 'Sec-Fetch-Site': 'same-origin' };
+export const sameOriginFor = (method: string): Record<string, string> => (/^(GET|HEAD)$/i.test(method) ? {} : SAME_ORIGIN);
+
 let sign: (email: string) => Promise<string>;
 let jwks: JWTVerifyGetKey;
 let ready: Promise<void> | undefined;
@@ -32,14 +36,14 @@ export async function setupAdmin(repo: FakeRepo = new FakeRepo(), storage: FakeS
   await repo.saveStaff(clerk, 't');
   const app = createApp({ makeRepo: () => repo, makeStorage: () => storage, jwks });
   async function req(who: Staff | null, method: string, path: string, json?: unknown, env: Env = ENV) {
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = { ...sameOriginFor(method) };
     if (who) headers['Cf-Access-Jwt-Assertion'] = await sign(who.email);
     if (json !== undefined) headers['Content-Type'] = 'application/json';
     return app.request(path, { method, headers, body: json === undefined ? undefined : JSON.stringify(json) }, env);
   }
   /** A request with a raw body (file uploads). */
   async function rawReq(who: Staff | null, method: string, path: string, body: BodyInit | undefined, headers: Record<string, string> = {}) {
-    const h: Record<string, string> = { ...headers };
+    const h: Record<string, string> = { ...sameOriginFor(method), ...headers };
     if (who) h['Cf-Access-Jwt-Assertion'] = await sign(who.email);
     return app.request(path, { method, headers: h, body }, ENV);
   }
@@ -51,5 +55,7 @@ export async function setupAdmin(repo: FakeRepo = new FakeRepo(), storage: FakeS
     return { id: p.id, token };
   }
   const json = async (res: Response) => (await res.json()) as any;
-  return { repo, storage, app, req, rawReq, activePartner, json };
+  /** A signed Access token for a staff member, for tests that build their own requests. */
+  const token = (who: Staff) => sign(who.email);
+  return { repo, storage, app, req, rawReq, activePartner, json, token };
 }

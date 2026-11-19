@@ -235,7 +235,9 @@ export function createStaffMock(partners: Partner[], cases: Case[]) {
       const k = commissions.get(decodeURIComponent(pm[1]));
       if (!k) return json(404, { error: '找不到佣金' });
       if (k.code === 'B1') return json(400, { error: '此佣金不能标记为已支付' });
+      if (typeof ctx.body.expectedAmount !== 'number') return json(400, { error: '请提供确认的金额', fields: { expectedAmount: '请提供确认的金额' } });
       if (k.status !== '可发放') return json(400, { error: '佣金尚未可发放' });
+      if (round2(k.amount) !== round2(ctx.body.expectedAmount)) return json(409, { error: '金额已变更，请刷新后再确认' });
       Object.assign(k, { status: '已支付', paidAt: new Date().toISOString(), paidBy: ctx.me.email });
       return json(200, k);
     }

@@ -6,7 +6,7 @@ import { StorageError } from './storage';
 
 /** Thrown by staff routes for a plain client error: { error } with the given status. */
 export class HttpError extends Error {
-  constructor(public status: 400 | 403 | 404 | 411 | 503, message: string, public fields?: Record<string, string>) {
+  constructor(public status: 400 | 403 | 404 | 409 | 411 | 415 | 503, message: string, public fields?: Record<string, string>) {
     super(message);
     this.name = 'HttpError';
   }

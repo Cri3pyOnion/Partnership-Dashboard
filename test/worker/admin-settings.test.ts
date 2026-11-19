@@ -112,7 +112,7 @@ describe('settings', () => {
     const p = await activePartner('A1');
     const paid = await json(await req(clerk, 'POST', '/api/admin/cases', newCase(p.id)));
     await req(clerk, 'PATCH', `/api/admin/cases/${paid.id}`, { clientPaid: true });
-    await req(admin, 'POST', `/api/admin/commissions/${paid.id}/mark-paid`);
+    await req(admin, 'POST', `/api/admin/commissions/${paid.id}/mark-paid`, { expectedAmount: 150 });
     const ready = await json(await req(clerk, 'POST', '/api/admin/cases', newCase(p.id)));
     await req(clerk, 'PATCH', `/api/admin/cases/${ready.id}`, { clientPaid: true });
     const before = [await repo.getCommission(paid.id), await repo.getCommission(ready.id)];

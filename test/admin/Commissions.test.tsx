@@ -68,7 +68,7 @@ describe('Commissions', () => {
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     renderPage();
     await user.click(await screen.findByRole('button', { name: '标记已支付' }));
-    expect(confirm).toHaveBeenCalledWith('确认标记为已支付？此操作不可撤销。');
+    expect(confirm).toHaveBeenCalledWith('确认标记 RM 300 为已支付？此操作不可撤销。');
     expect(post).not.toHaveBeenCalled();
   });
 
@@ -78,7 +78,28 @@ describe('Commissions', () => {
     post.mockResolvedValue({});
     renderPage();
     await user.click(await screen.findByRole('button', { name: '标记已支付' }));
-    await waitFor(() => expect(post).toHaveBeenCalledWith('/api/admin/commissions/TS-2611-014/mark-paid'));
+    await waitFor(() => expect(post).toHaveBeenCalledWith('/api/admin/commissions/TS-2611-014/mark-paid', { expectedAmount: 300 }));
+    await waitFor(() => expect(get.mock.calls.filter((c) => String(c[0]).startsWith('/api/admin/commissions')).length).toBe(2));
+  });
+
+  it('sends and shows the displayed amount, with cents', async () => {
+    rows = [row('TS-2611-020', { amount: 1234.5 })];
+    const user = userEvent.setup();
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    post.mockResolvedValue({});
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: '标记已支付' }));
+    expect(confirm).toHaveBeenCalledWith('确认标记 RM 1,234.50 为已支付？此操作不可撤销。');
+    await waitFor(() => expect(post).toHaveBeenCalledWith('/api/admin/commissions/TS-2611-020/mark-paid', { expectedAmount: 1234.5 }));
+  });
+
+  it('a 409 (amount changed) shows the message and reloads the list', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    post.mockRejectedValue(Object.assign(new Error('x'), { status: 409, error: '金额已变更，请刷新后再确认' }));
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: '标记已支付' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('金额已变更，请刷新后再确认');
     await waitFor(() => expect(get.mock.calls.filter((c) => String(c[0]).startsWith('/api/admin/commissions')).length).toBe(2));
   });
 

@@ -9,6 +9,7 @@ import { createApp } from '../../src/worker/index';
 import { FakeRepo } from '../fake-repo';
 import { caseInput, partnerInput } from '../repo/repo.contract';
 import { AUD, TEAM, makeAccess } from './access-helper';
+import { SAME_ORIGIN, sameOriginFor } from './admin-helper';
 
 const ENV = { ...(testEnv as unknown as Env), ACCESS_TEAM_DOMAIN: TEAM, ACCESS_AUD: AUD } as Env;
 const LINK_RE = /^https:\/\/partners\.tohssignlicense\.com\/p\/([A-Za-z0-9_-]{43})$/;
@@ -34,7 +35,7 @@ async function setup(now?: () => Date) {
   await repo.saveStaff(clerk, 't');
   const app = createApp({ makeRepo: () => repo, jwks });
   async function req(who: Staff | null, method: string, path: string, json?: unknown, env: Env = ENV) {
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = { ...sameOriginFor(method) };
     if (who) headers['Cf-Access-Jwt-Assertion'] = await sign(who.email);
     if (json !== undefined) headers['Content-Type'] = 'application/json';
     return app.request(
@@ -108,7 +109,7 @@ describe('POST /', () => {
     const { app } = await setup();
     const res = await app.request('/api/admin/partners', {
       method: 'POST',
-      headers: { 'Cf-Access-Jwt-Assertion': await sign(clerk.email), 'Content-Type': 'application/json' },
+      headers: { ...SAME_ORIGIN, 'Cf-Access-Jwt-Assertion': await sign(clerk.email), 'Content-Type': 'application/json' },
       body: '{oops',
     }, ENV);
     expect(res.status).toBe(400);

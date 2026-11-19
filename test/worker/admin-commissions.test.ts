@@ -18,7 +18,7 @@ describe('POST /api/admin/commissions/:caseId/mark-paid', () => {
   it('admin marks a 可发放 commission as 已支付 with paidAt and paidBy; page refreshed; audited', async () => {
     const { req, c, p, app, repo, json } = await payable();
     await app.request(`/p/${p.token}`, {}, ENV); // build the page
-    const res = await req(admin, 'POST', `/api/admin/commissions/${c.id}/mark-paid`);
+    const res = await req(admin, 'POST', `/api/admin/commissions/${c.id}/mark-paid`, { expectedAmount: 150 });
     expect(res.status).toBe(200);
     const cm = await json(res);
     expect(cm).toMatchObject({ caseId: c.id, status: '已支付', paidBy: admin.email });
@@ -30,39 +30,61 @@ describe('POST /api/admin/commissions/:caseId/mark-paid', () => {
 
   it('staff is refused when paidMarkedBy is admin (403) and allowed when it is staff', async () => {
     const { req, c, repo, json } = await payable();
-    const res = await req(clerk, 'POST', `/api/admin/commissions/${c.id}/mark-paid`);
+    const res = await req(clerk, 'POST', `/api/admin/commissions/${c.id}/mark-paid`, { expectedAmount: 150 });
     expect(res.status).toBe(403);
     expect(await json(res)).toEqual({ error: '没有权限' });
     expect((await repo.getCommission(c.id))!.status).toBe('可发放');
     const s = await repo.getSettings();
     s.commissionRules.paidMarkedBy = 'staff';
     await repo.saveSettings(s, 't');
-    expect((await req(clerk, 'POST', `/api/admin/commissions/${c.id}/mark-paid`)).status).toBe(200);
+    expect((await req(clerk, 'POST', `/api/admin/commissions/${c.id}/mark-paid`, { expectedAmount: 150 })).status).toBe(200);
   });
 
   it('only from 可发放: 待处理 and 已支付 are refused', async () => {
     const { req, activePartner, c, json } = await payable();
     const p2 = await activePartner('A1');
     const c2 = await json(await req(clerk, 'POST', '/api/admin/cases', newCase(p2.id)));
-    const early = await req(admin, 'POST', `/api/admin/commissions/${c2.id}/mark-paid`);
+    const early = await req(admin, 'POST', `/api/admin/commissions/${c2.id}/mark-paid`, { expectedAmount: 150 });
     expect(early.status).toBe(400);
     expect(await json(early)).toEqual({ error: '佣金尚未可发放' });
-    expect((await req(admin, 'POST', `/api/admin/commissions/${c.id}/mark-paid`)).status).toBe(200);
-    const again = await req(admin, 'POST', `/api/admin/commissions/${c.id}/mark-paid`);
+    expect((await req(admin, 'POST', `/api/admin/commissions/${c.id}/mark-paid`, { expectedAmount: 150 })).status).toBe(200);
+    const again = await req(admin, 'POST', `/api/admin/commissions/${c.id}/mark-paid`, { expectedAmount: 150 });
     expect(again.status).toBe(400);
     expect(await json(again)).toEqual({ error: '佣金尚未可发放' });
   });
 
   it('B1 commissions cannot be marked paid', async () => {
     const { req, c, json } = await payable('B1');
-    const res = await req(admin, 'POST', `/api/admin/commissions/${c.id}/mark-paid`);
+    const res = await req(admin, 'POST', `/api/admin/commissions/${c.id}/mark-paid`, { expectedAmount: 150 });
     expect(res.status).toBe(400);
     expect(await json(res)).toEqual({ error: '此佣金不能标记为已支付' });
   });
 
+  it('409 and nothing written when the recomputed amount differs from the confirmed one', async () => {
+    const { req, c, p, app, repo, json } = await payable();
+    await app.request(`/p/${p.token}`, {}, ENV);
+    const audits = repo.auditLog.length;
+    await repo.updateCase(c.id, { price: 900 }, 't'); // changed after the admin loaded the list: now RM 100
+    const res = await req(admin, 'POST', `/api/admin/commissions/${c.id}/mark-paid`, { expectedAmount: 150 });
+    expect(res.status).toBe(409);
+    expect(await json(res)).toEqual({ error: '金额已变更，请刷新后再确认' });
+    expect(await repo.getCommission(c.id)).toMatchObject({ amount: 150, status: '可发放', paidAt: null });
+    expect(repo.auditLog.length).toBe(audits);
+    expect((await req(admin, 'POST', `/api/admin/commissions/${c.id}/mark-paid`, { expectedAmount: 100 })).status).toBe(200);
+  });
+
+  it('400 when expectedAmount is missing or not a number; nothing written', async () => {
+    const { req, c, repo } = await payable();
+    for (const body of [{}, { expectedAmount: '150' }, { expectedAmount: null }, { expectedAmount: -1 }]) {
+      const res = await req(admin, 'POST', `/api/admin/commissions/${c.id}/mark-paid`, body);
+      expect(res.status, JSON.stringify(body)).toBe(400);
+    }
+    expect((await repo.getCommission(c.id))!.status).toBe('可发放');
+  });
+
   it('404 for an unknown case', async () => {
     const { req, json } = await setupAdmin();
-    const res = await req(admin, 'POST', '/api/admin/commissions/TS-0000-999/mark-paid');
+    const res = await req(admin, 'POST', '/api/admin/commissions/TS-0000-999/mark-paid', { expectedAmount: 150 });
     expect(res.status).toBe(404);
     expect(await json(res)).toEqual({ error: '找不到佣金' });
   });
@@ -72,14 +94,14 @@ describe('POST /api/admin/commissions/:caseId/mark-paid', () => {
     repo.audit = async () => {
       throw new RepoError('audit down');
     };
-    expect((await req(admin, 'POST', `/api/admin/commissions/${c.id}/mark-paid`)).status).toBe(200);
+    expect((await req(admin, 'POST', `/api/admin/commissions/${c.id}/mark-paid`, { expectedAmount: 150 })).status).toBe(200);
     expect((await repo.getCommission(c.id))!.status).toBe('已支付');
   });
 
   it('repo outage is a 503', async () => {
     const { req, c, repo, json } = await payable();
     repo.failNext();
-    const res = await req(admin, 'POST', `/api/admin/commissions/${c.id}/mark-paid`);
+    const res = await req(admin, 'POST', `/api/admin/commissions/${c.id}/mark-paid`, { expectedAmount: 150 });
     expect(res.status).toBe(503);
     expect(await json(res)).toEqual(DB_DOWN);
   });
@@ -127,16 +149,19 @@ describe('R33: mark-paid recomputes from the current case and rules', () => {
     const { req, c, repo, json } = await payable();
     await repo.updateCase(c.id, { cancelled: true }, 't'); // bypasses recalculation: a stale row
     expect((await repo.getCommission(c.id))!.status).toBe('可发放');
-    const res = await req(admin, 'POST', `/api/admin/commissions/${c.id}/mark-paid`);
+    const res = await req(admin, 'POST', `/api/admin/commissions/${c.id}/mark-paid`, { expectedAmount: 150 });
     expect(res.status).toBe(400);
     expect(await json(res)).toEqual({ error: '佣金尚未可发放' });
     expect((await repo.getCommission(c.id))!.status).toBe('可发放');
   });
 
-  it('a stale stored amount is replaced by the recomputed one', async () => {
+  it('a stale stored amount is never frozen: 409 for the shown amount, 200 once the recomputed one is confirmed', async () => {
     const { req, c, repo, json } = await payable();
     await repo.saveCommission({ ...(await repo.getCommission(c.id))!, amount: 999 });
-    const res = await req(admin, 'POST', `/api/admin/commissions/${c.id}/mark-paid`);
+    const stale = await req(admin, 'POST', `/api/admin/commissions/${c.id}/mark-paid`, { expectedAmount: 999 });
+    expect(stale.status).toBe(409);
+    expect((await repo.getCommission(c.id))!.status).toBe('可发放');
+    const res = await req(admin, 'POST', `/api/admin/commissions/${c.id}/mark-paid`, { expectedAmount: 150 });
     expect(res.status).toBe(200);
     expect((await json(res)).amount).toBe(150);
     expect(await repo.getCommission(c.id)).toMatchObject({ amount: 150, status: '已支付' });
@@ -150,9 +175,9 @@ describe('R33: mark-paid recomputes from the current case and rules', () => {
       partnerId: p.id, clientName: 'x', clientPhone: null, licenceType: '营业执照', council: null, missingDocs: null,
       price: 1800, markup: null, invoiceNo: null, notesInternal: null,
     }, 't');
-    expect((await req(admin, 'POST', `/api/admin/commissions/${cs.id}/mark-paid`)).status).toBe(400);
+    expect((await req(admin, 'POST', `/api/admin/commissions/${cs.id}/mark-paid`, { expectedAmount: 150 })).status).toBe(400);
     await repo.updateCase(cs.id, { clientPaid: true }, 't');
-    const res = await req(admin, 'POST', `/api/admin/commissions/${cs.id}/mark-paid`);
+    const res = await req(admin, 'POST', `/api/admin/commissions/${cs.id}/mark-paid`, { expectedAmount: 150 });
     expect(res.status).toBe(200);
     expect(await json(res)).toMatchObject({ amount: 150, status: '已支付', code: 'A1' });
   });

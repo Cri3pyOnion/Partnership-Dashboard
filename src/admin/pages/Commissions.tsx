@@ -54,15 +54,18 @@ export function Commissions() {
     void load();
   }, [load]);
 
-  async function markPaid(caseId: string) {
-    if (busy || !window.confirm('确认标记为已支付？此操作不可撤销。')) return;
+  /** Sends the amount on screen: the server refuses (409) if the recomputed amount is different. */
+  async function markPaid(r: Row) {
+    if (busy || !window.confirm(`确认标记 ${rm(r.amount)} 为已支付？此操作不可撤销。`)) return;
     setBusy(true);
     setError(null);
     try {
-      await api.post(`/api/admin/commissions/${encodeURIComponent(caseId)}/mark-paid`);
+      await api.post(`/api/admin/commissions/${encodeURIComponent(r.caseId)}/mark-paid`, { expectedAmount: r.amount });
       await load();
     } catch (e) {
       setError(errorText(e));
+      // The amount changed since the list loaded: show the new one so the admin can confirm it.
+      if ((e as { status?: unknown })?.status === 409) await load();
     } finally {
       setBusy(false);
     }
@@ -144,7 +147,7 @@ export function Commissions() {
                 <td className="muted">{r.basis}</td>
                 <td>
                   {r.status === '可发放' && r.code !== 'B1' && (
-                    <button type="button" className="btn" disabled={busy} onClick={() => markPaid(r.caseId)}>
+                    <button type="button" className="btn" disabled={busy} onClick={() => markPaid(r)}>
                       标记已支付
                     </button>
                   )}
