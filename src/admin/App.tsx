@@ -13,6 +13,34 @@ import { Reports } from './pages/Reports';
 import { Settings } from './pages/Settings';
 import { Statement } from './pages/Statement';
 
+/** Cloudflare Access ends the session for this site at this address (works on any hostname it guards). */
+export const SIGN_OUT_URL = '/cdn-cgi/access/logout';
+
+const ROLE_LABEL: Record<Me['role'], string> = { admin: '管理员', staff: '员工' };
+
+function Profile({ me }: { me: Me | null }) {
+  if (!me) return <span className="who" />;
+  return (
+    <section className="who" aria-label="我的账号">
+      <span className="who-name">{me.name}</span>
+      <span className="who-email">{me.email}</span>
+      <span className="who-role">
+        {ROLE_LABEL[me.role]}
+        {me.team ? ` · ${me.team}` : ''}
+      </span>
+      <a
+        className="btn sign-out"
+        href={SIGN_OUT_URL}
+        onClick={(e) => {
+          if (!window.confirm('确定退出登录？')) e.preventDefault();
+        }}
+      >
+        退出登录
+      </a>
+    </section>
+  );
+}
+
 const MENU = [
   { to: '/partners', label: '伙伴', adminOnly: false },
   { to: '/cases', label: '案件', adminOnly: false },
@@ -49,7 +77,7 @@ function Layout() {
               </NavLink>
             ))}
           </nav>
-          <span className="who">{me?.name ?? ''}</span>
+          <Profile me={me} />
         </header>
         <main className="content">
           {expired && (

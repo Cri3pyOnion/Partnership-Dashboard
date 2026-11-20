@@ -102,10 +102,29 @@ h2 {
 
 .who {
   margin-top: auto;
-  padding: 0 0.4rem;
-  color: var(--muted);
+  padding: 0.8rem 0.4rem 0;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
   font-size: 0.9rem;
   overflow-wrap: anywhere;
+}
+
+.who-name {
+  font-weight: 600;
+}
+
+.who-email,
+.who-role {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.who .sign-out {
+  margin-top: 0.6rem;
+  text-align: center;
+  text-decoration: none;
 }
 
 .content {
@@ -147,6 +166,21 @@ h2 {
 
   .who {
     margin: 0 0 0 auto;
+    padding: 0;
+    border-top: 0;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  .who-email,
+  .who-role {
+    display: none;
+  }
+
+  .who .sign-out {
+    margin-top: 0;
+    padding: 0.3rem 0.7rem;
   }
 
   .content {

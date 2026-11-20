@@ -48,3 +48,30 @@ describe('Layout', () => {
     expect(await screen.findByRole('heading', { name: '佣金' })).toBeTruthy();
   });
 });
+
+describe('Profile', () => {
+  const me = { email: 'vera@x.my', name: 'Vera', role: 'staff', team: 'Marketing' };
+
+  it('shows name, email and role, with a sign-out link to Cloudflare Access', async () => {
+    get.mockImplementation(async (p: string) => (p === '/api/admin/me' ? me : []));
+    renderApp();
+    const profile = await screen.findByRole('region', { name: '我的账号' });
+    expect(profile.textContent).toContain('Vera');
+    expect(profile.textContent).toContain('vera@x.my');
+    expect(profile.textContent).toContain('员工 · Marketing');
+    const out = screen.getByRole('link', { name: '退出登录' }) as HTMLAnchorElement;
+    expect(out.getAttribute('href')).toBe('/cdn-cgi/access/logout');
+  });
+
+  it('asks first, and stays when cancelled', async () => {
+    get.mockImplementation(async (p: string) => (p === '/api/admin/me' ? me : []));
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    renderApp();
+    const out = await screen.findByRole('link', { name: '退出登录' });
+    const click = new MouseEvent('click', { bubbles: true, cancelable: true });
+    out.dispatchEvent(click);
+    expect(confirm).toHaveBeenCalledWith('确定退出登录？');
+    expect(click.defaultPrevented).toBe(true);
+    confirm.mockRestore();
+  });
+});
