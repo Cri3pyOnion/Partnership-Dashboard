@@ -195,8 +195,10 @@ export class SupabaseRepo implements Repo {
     await run('saveSettings', this.db.from('settings').upsert(settingsToRows(s), { onConflict: 'key' }));
   }
 
-  async logLinkView(partnerId: string, country: string | null): Promise<void> {
-    await run('logLinkView', this.db.from('link_views').insert({ partner_id: partnerId, country }));
+  async logLinkView(partnerId: string, country: string | null): Promise<boolean> {
+    // Throttling and trimming happen inside the function, in one round trip (migration 20261120000005).
+    const added = await run<boolean>('logLinkView', this.db.rpc('log_link_view', { p_partner: partnerId, p_country: country }));
+    return added === true;
   }
   async listLinkViews(partnerId: string, limit: number): Promise<Array<{ viewedAt: string; country: string | null }>> {
     const rows = await run<Row[]>(

@@ -257,6 +257,30 @@ export function runRepoContract(make: () => Promise<Repo>): void {
   });
 
   describe('link views', () => {
+    it('drops a repeat view of the same partner and country inside the window', async () => {
+      const repo = await make();
+      const p = await repo.createPartner(partnerInput(), 'a@x.com');
+      expect(await repo.logLinkView(p.id, 'MY')).toBe(true);
+      expect(await repo.logLinkView(p.id, 'MY')).toBe(false);
+      expect(await repo.logLinkView(p.id, 'SG')).toBe(true);
+      expect(await repo.logLinkView(p.id, null)).toBe(true);
+      expect(await repo.logLinkView(p.id, null)).toBe(false);
+      expect(await repo.listLinkViews(p.id, 10)).toHaveLength(3);
+    });
+
+    it('keeps only the newest 100 views per partner', async () => {
+      const repo = await make();
+      const p = await repo.createPartner(partnerInput(), 'a@x.com');
+      const other = await repo.createPartner(partnerInput(), 'a@x.com');
+      await repo.logLinkView(other.id, 'MY');
+      for (let i = 0; i < 105; i++) await repo.logLinkView(p.id, `X${i}`);
+      const views = await repo.listLinkViews(p.id, 200);
+      expect(views).toHaveLength(100);
+      expect(views[0].country).toBe('X104');
+      expect(views.some((v) => v.country === 'X4')).toBe(false);
+      expect(await repo.listLinkViews(other.id, 10)).toHaveLength(1);
+    });
+
     it('lists newest first and honours the limit', async () => {
       const repo = await make();
       const p = await repo.createPartner(partnerInput(), 'a@x.com');

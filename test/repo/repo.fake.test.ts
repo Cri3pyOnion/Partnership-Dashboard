@@ -48,3 +48,16 @@ describe('FakeRepo', () => {
     expect((await repo.getCase(c.id))?.step).toBe(0);
   });
 });
+
+describe('FakeRepo view window', () => {
+  it('logs the same partner and country again once the window has passed', async () => {
+    let now = new Date('2026-11-20T04:00:00Z');
+    const repo = new FakeRepo({ now: () => now });
+    const p = await repo.createPartner(partnerInput(), 't');
+    expect(await repo.logLinkView(p.id, 'MY')).toBe(true);
+    now = new Date('2026-11-20T04:29:00Z');
+    expect(await repo.logLinkView(p.id, 'MY')).toBe(false);
+    now = new Date('2026-11-20T04:31:00Z');
+    expect(await repo.logLinkView(p.id, 'MY')).toBe(true);
+  });
+});

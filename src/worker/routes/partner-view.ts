@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import type { Context } from 'hono';
 import type { AppEnv } from '../env';
 import { renderInvalidLink, renderUnavailable } from '../partner-page';
+import { VIEW_LOG_WINDOW_MINUTES } from '../repo';
 import { getPartnerView } from '../view-cache';
 
 const SECURITY_HEADERS: Record<string, string> = {
@@ -17,10 +18,31 @@ const SECURITY_HEADERS: Record<string, string> = {
 const page = (html: string, status: 200 | 404 | 503, cache: string) =>
   new Response(html, { status, headers: { ...SECURITY_HEADERS, 'Cache-Control': cache } });
 
+/**
+ * Views this Worker instance has just logged, so a refresh loop does not reach the database at all.
+ * The database applies the same window for every instance; this is only a cheap first line.
+ */
+const recentlyLogged = new Map<string, number>();
+const MEMO_MAX = 1000;
+
+/** True when this instance logged the same partner and country inside the window (and it is not stale). */
+export function seenRecently(partnerId: string, country: string | null, now = Date.now()): boolean {
+  const k = `${partnerId}|${country ?? ''}`;
+  const until = recentlyLogged.get(k);
+  if (until !== undefined && until > now) return true;
+  if (recentlyLogged.size >= MEMO_MAX) recentlyLogged.clear();
+  recentlyLogged.set(k, now + VIEW_LOG_WINDOW_MINUTES * 60_000);
+  return false;
+}
+
+/** Test hook. */
+export const clearSeenRecently = () => recentlyLogged.clear();
+
 /** Fire-and-forget view log. Nothing here may change the response. */
 function logView(c: Context<AppEnv>, partnerId: string): void {
   try {
     const country = (c.req.raw.cf?.country as string | undefined) ?? null;
+    if (seenRecently(partnerId, country)) return;
     const p = Promise.resolve()
       .then(() => c.var.repo.logLinkView(partnerId, country))
       .catch(() => {});

@@ -230,7 +230,7 @@ describe('GET /:id', () => {
     const { req, repo } = await setup();
     const p = await repo.createPartner(partnerInput(), 't');
     await repo.createCase(caseInput(p.id), 't');
-    for (let i = 0; i < 12; i++) await repo.logLinkView(p.id, 'MY');
+    for (let i = 0; i < 12; i++) await repo.logLinkView(p.id, `C${i}`);
     const res = await req(clerk, 'GET', `/${p.id}`);
     expect(res.status).toBe(200);
     const j = (await res.json()) as any;

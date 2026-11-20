@@ -1,9 +1,10 @@
 import { createExecutionContext, waitOnExecutionContext } from 'cloudflare:test';
 import { env as testEnv } from 'cloudflare:workers';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { refreshOrDrop } from '../../src/worker/admin-support';
 import type { Env } from '../../src/worker/env';
 import { createApp } from '../../src/worker/index';
+import { clearSeenRecently, seenRecently } from '../../src/worker/routes/partner-view';
 import type { Repo } from '../../src/worker/repo';
 import { hashToken, isTokenShape, newViewToken } from '../../src/worker/token';
 import { dropPartnerView, getPartnerView, refreshPartnerView } from '../../src/worker/view-cache';
@@ -40,6 +41,9 @@ async function seeded() {
   await repo.saveCommission({ caseId: c.id, code: 'C1', amount: 300, basis: 'x', status: '待处理', paidAt: null, paidBy: null });
   return { repo, partner: p, token };
 }
+
+// Every test starts with an empty per-instance view memo (partner ids repeat across tests).
+beforeEach(() => clearSeenRecently());
 
 async function get(repo: Repo, path: string, init: RequestInit = {}, env: Env = ENV) {
   const app = createApp({ makeRepo: () => repo });
@@ -116,17 +120,19 @@ describe('GET /p/:token', () => {
     expect(stored?.html).toContain(`更新于 ${stored?.updatedAt}`);
   });
 
-  it('a valid token while the repo throws is still 200 from KV, and logs on a hit', async () => {
+  it('a valid token while the repo throws is still 200 from KV, and still logs on a hit', async () => {
     const { repo, partner, token } = await seeded();
     expect((await get(repo, `/p/${token}`)).status).toBe(200);
     const broken = spy(repo);
     repo.listCases = async () => { throw new Error('should not be called'); };
     repo.getPartnerByToken = async () => { throw new Error('should not be called'); };
+    clearSeenRecently(); // as if this request landed on another Worker instance
     const res = await get(broken.repo, `/p/${token}`);
     expect(res.status).toBe(200);
     expect(await res.text()).toContain('Kedai Kopi Ah Seng');
     expect(broken.calls).toEqual(['logLinkView']);
-    expect((await repo.listLinkViews(partner.id, 10)).length).toBe(2);
+    // The repo still drops the repeat: same partner, same country, inside the window.
+    expect((await repo.listLinkViews(partner.id, 10)).length).toBe(1);
   });
 
   it('503 暂时无法加载 when the repo fails and KV is empty', async () => {
@@ -352,5 +358,26 @@ describe('view cache', () => {
     const { repo, token } = await seeded();
     repo.failNext();
     await expect(getPartnerView(ENV, repo, token)).rejects.toThrow();
+  });
+});
+
+describe('view logging cannot be spammed', () => {
+  it('a refresh loop logs once and reaches the repo once', async () => {
+    const { repo, partner, token } = await seeded();
+    const calls = { n: 0 };
+    const real = repo.logLinkView.bind(repo);
+    repo.logLinkView = async (id, country) => { calls.n++; return real(id, country); };
+    for (let i = 0; i < 20; i++) expect((await get(repo, `/p/${token}`)).status).toBe(200);
+    expect(calls.n).toBe(1);
+    expect(await repo.listLinkViews(partner.id, 100)).toHaveLength(1);
+  });
+
+  it('the per-instance memo expires after the window and is keyed by partner and country', () => {
+    const t0 = 1_000_000;
+    expect(seenRecently('TSP0001', 'MY', t0)).toBe(false);
+    expect(seenRecently('TSP0001', 'MY', t0 + 60_000)).toBe(true);
+    expect(seenRecently('TSP0001', 'SG', t0 + 60_000)).toBe(false);
+    expect(seenRecently('TSP0002', 'MY', t0 + 60_000)).toBe(false);
+    expect(seenRecently('TSP0001', 'MY', t0 + 31 * 60_000)).toBe(false);
   });
 });

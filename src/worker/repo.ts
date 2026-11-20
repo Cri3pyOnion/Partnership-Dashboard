@@ -20,6 +20,11 @@ export class NotFoundError extends Error {
   }
 }
 
+/** Repeat views of one partner from one country inside this window are not stored. */
+export const VIEW_LOG_WINDOW_MINUTES = 30;
+/** Only this many views are kept per partner (the newest). */
+export const MAX_VIEWS_PER_PARTNER = 100;
+
 export interface CaseHistoryRow {
   step: StepIndex;
   changedAt: string;
@@ -57,7 +62,11 @@ export interface Repo {
   getSettings(): Promise<Settings>;
   saveSettings(s: Settings, by: string): Promise<void>;
 
-  logLinkView(partnerId: string, country: string | null): Promise<void>;
+  /**
+   * Records a partner page view, at most once per partner and country every
+   * VIEW_LOG_WINDOW_MINUTES, keeping the newest MAX_VIEWS_PER_PARTNER rows. True when a row was added.
+   */
+  logLinkView(partnerId: string, country: string | null): Promise<boolean>;
   /** Newest first. */
   listLinkViews(partnerId: string, limit: number): Promise<Array<{ viewedAt: string; country: string | null }>>;
 

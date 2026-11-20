@@ -1,7 +1,7 @@
 import { DEFAULT_RULES } from '../src/shared/commission';
 import { formatCaseId, formatPartnerId } from '../src/shared/ids';
 import { DEFAULT_INACTIVE_DAYS, DEFAULT_LICENCE_TYPES, monthRange, pickNewCase, pickNewPartner } from '../src/worker/mapping';
-import { NotFoundError, RepoError } from '../src/worker/repo';
+import { MAX_VIEWS_PER_PARTNER, NotFoundError, RepoError, VIEW_LOG_WINDOW_MINUTES } from '../src/worker/repo';
 import type { CaseHistoryRow, Repo } from '../src/worker/repo';
 import type { StepIndex } from '../src/shared/status';
 import type {
@@ -218,7 +218,16 @@ export class FakeRepo implements Repo {
   async logLinkView(partnerId: string, country: string | null) {
     this.gate();
     if (!this.partners.has(partnerId)) throw new RepoError(`unknown partner ${partnerId}`);
-    this.views.push({ partnerId, viewedAt: this.now().toISOString(), country });
+    const now = this.now();
+    const since = now.getTime() - VIEW_LOG_WINDOW_MINUTES * 60_000;
+    if (this.views.some((v) => v.partnerId === partnerId && v.country === country && Date.parse(v.viewedAt) > since)) return false;
+    this.views.push({ partnerId, viewedAt: now.toISOString(), country });
+    const mine = this.views.filter((v) => v.partnerId === partnerId);
+    if (mine.length > MAX_VIEWS_PER_PARTNER) {
+      const drop = new Set(mine.slice(0, mine.length - MAX_VIEWS_PER_PARTNER));
+      this.views = this.views.filter((v) => !drop.has(v));
+    }
+    return true;
   }
   async listLinkViews(partnerId: string, limit: number) {
     this.gate();
