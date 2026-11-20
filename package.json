@@ -11,7 +11,7 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.admin.json",
     "deploy": "npm run build && wrangler deploy",
-    "preview:admin": "vite --mode mock --open /admin/",
+    "preview:admin": "vite --mode mock --open /dashboard/",
     "preview:partner": "tsx scripts/preview-partner-page.ts"
   },
   "devDependencies": {

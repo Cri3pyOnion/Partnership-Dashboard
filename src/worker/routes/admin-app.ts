@@ -1,7 +1,9 @@
-// Serves the staff app (Vite build) under /admin. Cloudflare Access protects /admin* at the edge;
-// the API checks Access itself, so this shell needs no check.
+// Serves the staff app (Vite build) under /dashboard. Cloudflare Access protects /dashboard* at the
+// edge; the API checks Access itself, so this shell needs no check.
 import { Hono } from 'hono';
 import type { AppEnv } from '../env';
+
+export const APP_BASE = '/dashboard';
 
 const SHELL_HEADERS: Record<string, string> = {
   'Content-Security-Policy':
@@ -14,12 +16,19 @@ const SHELL_HEADERS: Record<string, string> = {
 
 export const adminApp = new Hono<AppEnv>();
 
-adminApp.get('/', (c) => c.redirect('/admin/', 302));
+adminApp.get('/', (c) => c.redirect(`${APP_BASE}/`, 302));
 
-adminApp.on('GET', '/admin/assets/*', (c) => c.env.ASSETS.fetch(c.req.raw));
+// The staff app used to live under /admin: old bookmarks land on the same page.
+adminApp.on('GET', ['/admin', '/admin/*'], (c) => {
+  const url = new URL(c.req.url);
+  const rest = url.pathname.slice('/admin'.length) || '/';
+  return c.redirect(`${APP_BASE}${rest}${url.search}`, 301);
+});
 
-adminApp.on('GET', ['/admin', '/admin/', '/admin/*'], async (c) => {
-  const res = await c.env.ASSETS.fetch(new Request(new URL('/admin/index.html', c.req.url)));
+adminApp.on('GET', `${APP_BASE}/assets/*`, (c) => c.env.ASSETS.fetch(c.req.raw));
+
+adminApp.on('GET', [APP_BASE, `${APP_BASE}/`, `${APP_BASE}/*`], async (c) => {
+  const res = await c.env.ASSETS.fetch(new Request(new URL(`${APP_BASE}/index.html`, c.req.url)));
   const out = new Response(res.body, { status: res.status, headers: res.headers });
   for (const [k, v] of Object.entries(SHELL_HEADERS)) out.headers.set(k, v);
   return out;

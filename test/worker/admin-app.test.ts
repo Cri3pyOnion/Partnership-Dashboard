@@ -13,8 +13,8 @@ function envWithAssets(seen: string[]): Env {
     fetch: async (input: Request | string | URL) => {
       const url = new URL(input instanceof Request ? input.url : String(input));
       seen.push(url.pathname);
-      if (url.pathname === '/admin/index.html') return new Response('<!doctype html><div id="root"></div>', { headers: { 'content-type': 'text/html' } });
-      if (url.pathname === '/admin/assets/x.js') return new Response('console.log(1)', { headers: { 'content-type': 'text/javascript' } });
+      if (url.pathname === '/dashboard/index.html') return new Response('<!doctype html><div id="root"></div>', { headers: { 'content-type': 'text/html' } });
+      if (url.pathname === '/dashboard/assets/x.js') return new Response('console.log(1)', { headers: { 'content-type': 'text/javascript' } });
       return new Response('nope', { status: 404 });
     },
   } as unknown as Fetcher;
@@ -30,18 +30,18 @@ async function get(path: string, env: Env) {
 }
 
 describe('staff app shell', () => {
-  it('redirects / to /admin/', async () => {
+  it('redirects / to /dashboard/', async () => {
     const res = await get('/', envWithAssets([]));
     expect(res.status).toBe(302);
-    expect(new URL(res.headers.get('location')!, 'https://portal.example.com').pathname).toBe('/admin/');
+    expect(new URL(res.headers.get('location')!, 'https://portal.example.com').pathname).toBe('/dashboard/');
   });
 
-  it.each(['/admin', '/admin/', '/admin/partners/TSP0001', '/admin/statements/TSP0001/2026-11'])('serves index.html with the CSP for %s', async (path) => {
+  it.each(['/dashboard', '/dashboard/', '/dashboard/partners/TSP0001', '/dashboard/statements/TSP0001/2026-11'])('serves index.html with the CSP for %s', async (path) => {
     const seen: string[] = [];
     const res = await get(path, envWithAssets(seen));
     expect(res.status).toBe(200);
     expect(await res.text()).toContain('id="root"');
-    expect(seen).toEqual(['/admin/index.html']);
+    expect(seen).toEqual(['/dashboard/index.html']);
     expect(res.headers.get('content-security-policy')).toBe(CSP);
     expect(res.headers.get('x-content-type-options')).toBe('nosniff');
     expect(res.headers.get('referrer-policy')).toBe('no-referrer');
@@ -49,13 +49,26 @@ describe('staff app shell', () => {
     expect(res.headers.get('x-robots-tag')).toBe('noindex');
   });
 
-  it('passes /admin/assets/* straight through', async () => {
+  it('passes /dashboard/assets/* straight through', async () => {
     const seen: string[] = [];
-    const res = await get('/admin/assets/x.js', envWithAssets(seen));
+    const res = await get('/dashboard/assets/x.js', envWithAssets(seen));
     expect(res.status).toBe(200);
     expect(await res.text()).toBe('console.log(1)');
-    expect(seen).toEqual(['/admin/assets/x.js']);
+    expect(seen).toEqual(['/dashboard/assets/x.js']);
     expect(res.headers.get('content-security-policy')).toBeNull();
+  });
+
+  it.each([
+    ['/admin', '/dashboard/'],
+    ['/admin/', '/dashboard/'],
+    ['/admin/partners/TSP0001?tab=cases', '/dashboard/partners/TSP0001?tab=cases'],
+  ])('old address %s moves to %s', async (from, to) => {
+    const seen: string[] = [];
+    const res = await get(from, envWithAssets(seen));
+    expect(res.status).toBe(301);
+    const loc = new URL(res.headers.get('location')!, 'https://portal.example.com');
+    expect(loc.pathname + loc.search).toBe(to);
+    expect(seen).toEqual([]);
   });
 
   it('leaves /p and /api alone', async () => {
