@@ -1,4 +1,4 @@
-{
+﻿{
   "name": "portal",
   "main": "src/worker/index.ts",
   "compatibility_date": "2026-11-01",
@@ -15,7 +15,7 @@
   },
   "kv_namespaces": [{ "binding": "VIEWS", "id": "733072986fd347548ab584d14172a99c" }],
   "vars": {
-    "ACCESS_TEAM_DOMAIN": "polished-dust-a6eb.cloudflareaccess.com",
+    "ACCESS_TEAM_DOMAIN": "tohssign.cloudflareaccess.com",
     "ACCESS_AUD": "d638aed16c4cd132cb0c52d5b47e42dc603767afb00c5bc1b19da006a3fa8f73",
     "SUPABASE_URL": "https://szrrnvmfailhaomgklwe.supabase.co",
     "MARKETING_WHATSAPP": "",
