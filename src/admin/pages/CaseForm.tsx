@@ -115,7 +115,7 @@ export function CaseForm() {
       </div>
       <ErrorBanner message={error} onClose={() => setError(null)} />
       <form className="form" onSubmit={submit} noValidate>
-        <Field id="c-partner" label="伙伴 Partner" error={errors.partnerId}>
+        <Field id="c-partner" label="伙伴" error={errors.partnerId}>
           <select id="c-partner" value={partnerId} onChange={(e) => choosePartner(e.target.value)} aria-invalid={!!errors.partnerId}>
             <option value="">请选择</option>
             {partners.map((p) => (
@@ -125,10 +125,10 @@ export function CaseForm() {
             ))}
           </select>
         </Field>
-        <Field id="c-handler" label="处理员工 Handled by" error={errors.handledBy}>
+        <Field id="c-handler" label="处理员工" error={errors.handledBy}>
           <StaffSelect id="c-handler" label="处理员工" value={handledBy} list={staff} invalid={!!errors.handledBy} onChange={setHandledBy} />
         </Field>
-        <Field id="c-licence" label="执照类型 Licence type" error={errors.licenceType}>
+        <Field id="c-licence" label="执照类型" error={errors.licenceType}>
           <select id="c-licence" value={licenceType} onChange={(e) => setLicenceType(e.target.value)} aria-invalid={!!errors.licenceType}>
             {licences.map((l) => (
               <option key={l} value={l}>
@@ -137,20 +137,20 @@ export function CaseForm() {
             ))}
           </select>
         </Field>
-        <Field id="c-council" label="州属局 Council" error={errors.council}>
+        <Field id="c-council" label="州属局" error={errors.council}>
           <input id="c-council" value={council} onChange={(e) => setCouncil(e.target.value)} />
         </Field>
-        <Field id="c-name" label="客户姓名 Client name" error={errors.clientName}>
+        <Field id="c-name" label="客户姓名" error={errors.clientName}>
           <input id="c-name" value={clientName} onChange={(e) => setClientName(e.target.value)} aria-invalid={!!errors.clientName} />
         </Field>
-        <Field id="c-phone" label="客户电话 Client phone" error={errors.clientPhone}>
+        <Field id="c-phone" label="客户电话" error={errors.clientPhone}>
           <input id="c-phone" inputMode="tel" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} />
         </Field>
-        <Field id="c-price" label="价格 Price (RM)" error={errors.price}>
+        <Field id="c-price" label="价格 (RM)" error={errors.price}>
           <input id="c-price" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} aria-invalid={!!errors.price} />
         </Field>
         {chosen?.code === 'C1' && (
-          <Field id="c-markup" label="加价 Markup (RM)" error={errors.markup}>
+          <Field id="c-markup" label="加价 (RM)" error={errors.markup}>
             <input id="c-markup" inputMode="decimal" value={markup} onChange={(e) => setMarkup(e.target.value)} aria-invalid={!!errors.markup} />
           </Field>
         )}

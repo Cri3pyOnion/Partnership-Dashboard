@@ -98,9 +98,8 @@ function Field({ id, label, en, required, error, hint, children }: { id: string;
   return (
     <div className={`field${error ? ' has-error' : ''}`}>
       <label htmlFor={id}>
-        {/* In English the English hint is the label; in Chinese it follows the label in small type. */}
+        {/* One language at a time: the English label in English, the Chinese one in Chinese. */}
         {EN_MODE && en ? en : label}
-        {!EN_MODE && en && <span className="en"> {en}</span>}
         {required && <span className="req"> *</span>}
       </label>
       {children}
@@ -242,11 +241,11 @@ export function PartnerForm({ partner, onSaved, onCancel }: { partner?: Partner;
         </select>
       </Field>
 
-      <Field id="f-bank" label="银行名称" en="Bank（仅限内部 – internal only）" error={errors.bankName}>
+      <Field id="f-bank" label="银行名称（仅限内部）" en="Bank name (internal only)" error={errors.bankName}>
         <input id="f-bank" value={v.bankName} aria-invalid={bad('bankName')} onChange={(e) => set('bankName', e.target.value)} />
       </Field>
 
-      <Field id="f-acct" label="银行户口" en="Bank Account（仅限内部 – internal only）" error={errors.bankAccount}>
+      <Field id="f-acct" label="银行户口（仅限内部）" en="Bank account (internal only)" error={errors.bankAccount}>
         <input id="f-acct" inputMode="numeric" value={v.bankAccount} aria-invalid={bad('bankAccount')} onChange={(e) => set('bankAccount', e.target.value)} autoComplete="off" />
       </Field>
 

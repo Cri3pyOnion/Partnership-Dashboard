@@ -29,9 +29,9 @@ ${body}
 </html>`;
 }
 
-/** A label: Chinese with small English after it, or English alone on the English page. */
+/** A label in the page's one language: Chinese on the Chinese page, English on the English page. */
 function both(lang: Lang, zh: string, en: string): string {
-  return lang === 'en' ? esc(en) : `${esc(zh)} <span class="en">${esc(en)}</span>`;
+  return esc(lang === 'en' ? en : zh);
 }
 
 /** EN | 中文 at the top right; each link reloads the page in that language and remembers it. */
@@ -51,14 +51,14 @@ function timeline(c: PartnerViewCase, lang: Lang): string {
     if (c.step !== 'cancelled') cls = i < c.step ? 'done' : i === c.step ? (i === 5 ? 'done now' : 'now') : '';
     return `<li${cls ? ` class="${esc(cls)}"` : ''}>${esc(tr(lang, s))}</li>`;
   }).join('');
-  return `<ol class="tl" aria-label="${lang === 'en' ? 'Progress' : '进度 Progress'}">${items}</ol>`;
+  return `<ol class="tl" aria-label="${lang === 'en' ? 'Progress' : '进度'}">${items}</ol>`;
 }
 
 function caseCard(c: PartnerViewCase, lang: Lang): string {
   const cancelled = c.step === 'cancelled';
   const current = cancelled ? STEP_CANCELLED : CASE_STEPS[c.step as number];
   const missing = c.missingDocs && !cancelled
-    ? `<p class="missing">${lang === 'en' ? 'Missing documents' : '需补文件 Missing documents'} · ${esc(c.missingDocs)}</p>`
+    ? `<p class="missing">${lang === 'en' ? 'Missing documents' : '需补文件'} · ${esc(c.missingDocs)}</p>`
     : '';
   const amount = c.amount === null ? '–' : rm(c.amount);
   return `<article class="case${cancelled ? ' cx' : ''}">
@@ -84,7 +84,7 @@ export function renderPartnerPage(v: PartnerView, updatedAt: string, lang: Lang 
   // One column per kind of money; A1/C1 commission and B1 amounts owed are never added together.
   const heads: Record<MoneyKind, string> = {
     commission: both(lang, '佣金', 'Commission'),
-    b1: en ? esc("Owed to Toh's Sign") : `${esc("应付 Toh's Sign")} <span class="en">Owed</span>`,
+    b1: en ? esc("Owed to Toh's Sign") : esc("应付 Toh's Sign"),
   };
   const kinds = v.monthKinds;
   const head = kinds.length > 1
@@ -97,32 +97,31 @@ export function renderPartnerPage(v: PartnerView, updatedAt: string, lang: Lang 
     : `<p class="empty">${both(lang, '暂无记录', 'Nothing yet')}</p>`;
   const wa = v.whatsapp
     ? `<a class="wa" href="${esc(v.whatsapp)}" target="_blank" rel="noopener noreferrer">${
-      en ? 'Contact Marketing on WhatsApp' : 'WhatsApp 联系 Marketing <span class="en">Contact Marketing</span>'
+      en ? 'Contact Marketing on WhatsApp' : 'WhatsApp 联系 Marketing'
     }</a>`
     : '';
-  // Money tiles: in English the tile's own label is the English for the Chinese one.
-  const moneyTile = (zh: string, enWord: string, value: number) =>
-    tile(lang, zh, en ? tr(lang, zh) : enWord, rm(value));
+  // Money tiles: the label is the view's Chinese, or its English from the dictionary.
+  const moneyTile = (zh: string, value: number) => tile(lang, zh, tr('en', zh), rm(value));
 
   const body = `<main>
 ${langSwitch(lang)}
 <header class="top">
-<p class="brand">${en ? "Toh's Sign Partner Portal" : "Toh's Sign 伙伴门户 <span class=\"en\">Partner Portal</span>"}</p>
+<p class="brand">${en ? "Toh's Sign Partner Portal" : "Toh's Sign 伙伴门户"}</p>
 <h1>${esc(p.name)}</h1>
 ${p.company ? `<p class="co">${esc(p.company)}</p>` : ''}
-<p class="meta"><span>${en ? 'Partner ID' : '伙伴编号 <span class="en">ID</span>'} <b>${esc(p.id)}</b></span><span>${en ? 'Code' : '伙伴代码 <span class="en">Code</span>'} <b>${esc(p.code)}</b></span></p>
+<p class="meta"><span>${en ? 'Partner ID' : '伙伴编号'} <b>${esc(p.id)}</b></span><span>${en ? 'Code' : '伙伴代码'} <b>${esc(p.code)}</b></span></p>
 <p class="upd">${en ? 'Updated' : '更新于'} ${esc(updatedAt)}</p>
 ${b1}
 </header>
-<section class="tiles five" aria-label="${en ? 'Case summary' : '案件概览 Case summary'}">
+<section class="tiles five" aria-label="${en ? 'Case summary' : '案件概览'}">
 ${tile(lang, '推荐案件', 'Total referred', String(t.total))}
 ${tile(lang, '进行中', 'Active', String(t.active))}
 ${tile(lang, '已完成', 'Done', String(t.done))}
 ${tile(lang, '已放弃', 'Dropped', String(t.dropped))}
 ${tile(lang, '有效率', 'Active pipeline rate', t.pipelineRate === null ? '—' : `${t.pipelineRate}%`, 'rate')}
 </section>
-<section class="tiles" aria-label="${en ? 'Money summary' : '佣金概览 Money summary'}">
-${t.money.map((m) => `${moneyTile(m.pendingLabel, 'Pending', m.pending)}\n${moneyTile(m.paidLabel, 'Paid', m.paid)}`).join('\n')}
+<section class="tiles" aria-label="${en ? 'Money summary' : '佣金概览'}">
+${t.money.map((m) => `${moneyTile(m.pendingLabel, m.pending)}\n${moneyTile(m.paidLabel, m.paid)}`).join('\n')}
 </section>
 <h2>${both(lang, '案件', 'Cases')}</h2>
 ${cases}
@@ -132,7 +131,7 @@ ${wa}
 <p class="foot">${
     en
       ? 'This page is private to you. Please do not share the link.'
-      : '此页面仅供你本人查看，请勿转发链接。<br><span class="en">This page is private to you. Please do not share the link.</span>'
+      : '此页面仅供你本人查看，请勿转发链接。'
   }</p>
 </main>`;
   return shell(en ? `${p.name} · Partner Portal` : `${p.name} · 伙伴门户`, body, lang);
@@ -146,7 +145,7 @@ export function renderInvalidLink(lang: Lang = 'zh'): string {
       lang,
     );
   }
-  return shell('链接无效', `<main class="msg">${langSwitch(lang)}<h1>链接无效</h1><p>请向 Toh's Sign 索取新的链接。<br><span class="en">This link is not valid.</span></p></main>`);
+  return shell('链接无效', `<main class="msg">${langSwitch(lang)}<h1>链接无效</h1><p>请向 Toh's Sign 索取新的链接。</p></main>`);
 }
 
 export function renderUnavailable(lang: Lang = 'zh'): string {
@@ -157,5 +156,5 @@ export function renderUnavailable(lang: Lang = 'zh'): string {
       lang,
     );
   }
-  return shell('暂时无法加载', `<main class="msg">${langSwitch(lang)}<h1>暂时无法加载，请稍后再试</h1><p><span class="en">Temporarily unavailable. Please try again later.</span></p></main>`);
+  return shell('暂时无法加载', `<main class="msg">${langSwitch(lang)}<h1>暂时无法加载</h1><p>请稍后再试。</p></main>`);
 }

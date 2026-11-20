@@ -211,8 +211,8 @@ export function PartnerDetail() {
           <Row label="推荐人姓名">{partner.referralName ?? '—'}</Row>
           <Row label="来源">{partner.source ?? '—'}</Row>
           <Row label="登记日期">{klDate(partner.registeredAt)}</Row>
-          <Row label="银行名称（仅限内部 – internal only）">{partner.bankName ?? '—'}</Row>
-          <Row label="银行户口（仅限内部 – internal only）">{partner.bankAccount ?? '—'}</Row>
+          <Row label="银行名称（仅限内部）">{partner.bankName ?? '—'}</Row>
+          <Row label="银行户口（仅限内部）">{partner.bankAccount ?? '—'}</Row>
         </dl>
       )}
 

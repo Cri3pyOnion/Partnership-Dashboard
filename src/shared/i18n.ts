@@ -130,8 +130,8 @@ export const EN: Readonly<Record<string, string>> = {
   电话号码: 'Phone number',
   银行名称: 'Bank name',
   银行户口: 'Bank account',
-  '银行名称（仅限内部 – internal only）': 'Bank name (internal only)',
-  '银行户口（仅限内部 – internal only）': 'Bank account (internal only)',
+  '银行名称（仅限内部）': 'Bank name (internal only)',
+  '银行户口（仅限内部）': 'Bank account (internal only)',
   '个人以 IG 开头，公司以 C 开头（LHDN 税号）': 'Individuals start with IG, companies with C (LHDN tax ID)',
   新案件默认交给这位员工: 'New cases go to this staff member by default',
   未选择: 'Not selected',
@@ -180,8 +180,6 @@ export const EN: Readonly<Record<string, string>> = {
   国家: 'Country',
   内部备注: 'Internal notes',
 
-  'Bank（仅限内部 – internal only）': 'Bank (internal only)',
-  'Bank Account（仅限内部 – internal only）': 'Bank account (internal only)',
   在新分页打开伙伴页面: "Open the partner's page in a new tab",
   '· 代码': '· Code',
   '· 月份': '· Month',
@@ -189,12 +187,7 @@ export const EN: Readonly<Record<string, string>> = {
   // Cases
   新增案件: 'New case',
   价格: 'Price',
-  '伙伴 Partner': 'Partner',
-  '处理员工 Handled by': 'Handled by',
-  '执照类型 Licence type': 'Licence type',
-  '州属局 Council': 'Council',
-  '客户姓名 Client name': 'Client name',
-  '客户电话 Client phone': 'Client phone',
+
   全部伙伴: 'All partners',
   全部进度: 'All stages',
   没有符合条件的案件: 'No matching cases',
@@ -207,9 +200,9 @@ export const EN: Readonly<Record<string, string>> = {
   客户电话: 'Client phone',
   执照类型: 'Licence type',
   州属局: 'Council',
-  '价格 Price (RM)': 'Price (RM)',
-  '加价 Markup (RM)': 'Markup (RM)',
-  '发票号码 Invoice no.': 'Invoice no.',
+  '价格 (RM)': 'Price (RM)',
+  '加价 (RM)': 'Markup (RM)',
+  发票号码: 'Invoice no.',
   伙伴尚未批准: 'The partner is not approved yet',
 
   // Case detail
@@ -268,11 +261,13 @@ export const EN: Readonly<Record<string, string>> = {
   '活跃伙伴很久没有新案件时会列在这里。': 'Active partners with no new case for a long time are listed here.',
   没有需要联系的伙伴: 'No partners to follow up',
   电话无效: 'Invalid phone',
-  '月结单 Statement': 'Monthly statement',
+  月结单: 'Monthly statement',
   '打印 / 保存为 PDF': 'Print / save as PDF',
   返回佣金: 'Back to commissions',
-  '佣金 已支付 Paid to partner': 'Commission paid to partner',
-  '佣金 待发 Pending (待处理 + 可发放)': 'Commission pending (Pending + Ready to pay)',
+  已支付佣金: 'Commission paid to partner',
+  '待发佣金（待处理 + 可发放）': 'Commission pending (Pending + Ready to pay)',
+  "伙伴应付 Toh's Sign · 已结清": "Owed to Toh's Sign · Settled",
+  "伙伴应付 Toh's Sign · 待付（待付发票）": "Owed to Toh's Sign · Due (Invoice due)",
 
   // Settings
   佣金规则: 'Commission rules',

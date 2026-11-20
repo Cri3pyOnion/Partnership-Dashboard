@@ -7,7 +7,7 @@ import { createApp } from '../../src/worker/index';
 import { clearSeenRecently, seenRecently } from '../../src/worker/routes/partner-view';
 import type { Repo } from '../../src/worker/repo';
 import { hashToken, isTokenShape, newViewToken } from '../../src/worker/token';
-import { dropPartnerView, getPartnerView, refreshPartnerView } from '../../src/worker/view-cache';
+import { SNAPSHOT_VERSION, dropPartnerView, getPartnerView, refreshPartnerView } from '../../src/worker/view-cache';
 import { FakeRepo } from '../fake-repo';
 import { caseInput, partnerInput } from '../repo/repo.contract';
 
@@ -140,7 +140,7 @@ describe('GET /p/:token', () => {
     repo.failNext();
     const res = await get(repo, `/p/${token}`);
     expect(res.status).toBe(503);
-    expect(await res.text()).toContain('暂时无法加载，请稍后再试');
+    expect(await res.text()).toContain('暂时无法加载');
     expectSecurityHeaders(res, 'no-store');
   });
 
@@ -276,7 +276,7 @@ describe('best-effort KV and unexpected errors (R22)', () => {
     repo.getPartnerByToken = async () => { throw new TypeError('boom'); };
     const res = await get(repo, `/p/${token}`);
     expect(res.status).toBe(503);
-    expect(await res.text()).toContain('暂时无法加载，请稍后再试');
+    expect(await res.text()).toContain('暂时无法加载');
     expectSecurityHeaders(res, 'no-store');
   });
 });
@@ -424,14 +424,17 @@ describe('partner page language', () => {
     expect(await res.text()).toContain('This link is not valid');
   });
 
-  it('a page stored before English existed is rebuilt for English, still served for Chinese', async () => {
+  it('a page stored by an older layout is rebuilt in either language on its next visit', async () => {
     const { repo, token } = await seeded();
     await getPartnerView(ENV, repo, token, 'zh');
     const k = `view:${await hashToken(token)}`;
     const stored = JSON.parse((await ENV.VIEWS.get(k)) as string);
-    delete stored.htmlEn;
-    await ENV.VIEWS.put(k, JSON.stringify({ ...stored, html: stored.html.replace('推荐案件', '旧页面') }));
-    expect((await getPartnerView(ENV, repo, token, 'zh'))!.html).toContain('旧页面');
-    expect((await getPartnerView(ENV, repo, token, 'en'))!.html).toContain('Total referred');
+    // What the first English release stored: no version, a Chinese page with small English in it.
+    await ENV.VIEWS.put(k, JSON.stringify({ html: '<p>旧页面 Old page</p>', htmlEn: stored.htmlEn, updatedAt: stored.updatedAt, partnerId: stored.partnerId }));
+    const zh = (await getPartnerView(ENV, repo, token, 'zh'))!.html;
+    expect(zh).not.toContain('旧页面');
+    expect(zh).toContain('EN</a>');
+    expect(JSON.parse((await ENV.VIEWS.get(k)) as string).v).toBe(SNAPSHOT_VERSION);
   });
+
 });

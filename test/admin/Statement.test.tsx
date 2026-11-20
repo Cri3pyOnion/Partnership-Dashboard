@@ -89,8 +89,8 @@ describe('Statement', () => {
     expect(within(cx).getByText(/已放弃/)).toBeTruthy();
     expect(screen.getByTestId('total-commission-paid').textContent).toBe('RM 300');
     expect(screen.getByTestId('total-commission-pending').textContent).toBe('RM 150');
-    expect(screen.getByText(/已支付 Paid/)).toBeTruthy();
-    expect(screen.getByText(/待发 Pending/)).toBeTruthy();
+    expect(screen.getByText('已支付佣金')).toBeTruthy();
+    expect(screen.getByText('待发佣金（待处理 + 可发放）')).toBeTruthy();
   });
 
   it('marks a pending line as 佣金待计算', async () => {

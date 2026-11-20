@@ -86,7 +86,7 @@ export function Statement() {
       </div>
 
       <header className="statement-head">
-        <h1>月结单 Statement</h1>
+        <h1>月结单</h1>
         <p>
           <strong>{partner.name}</strong>
         </p>
@@ -138,13 +138,13 @@ export function Statement() {
             {(hasPaid || !hasB1) && (
               <>
                 <tr>
-                  <th colSpan={6}>佣金 已支付 Paid to partner</th>
+                  <th colSpan={6}>已支付佣金</th>
                   <th className="num" data-testid="total-commission-paid">
                     {rm(totals.commissionPaid)}
                   </th>
                 </tr>
                 <tr>
-                  <th colSpan={6}>佣金 待发 Pending (待处理 + 可发放)</th>
+                  <th colSpan={6}>待发佣金（待处理 + 可发放）</th>
                   <th className="num" data-testid="total-commission-pending">
                     {rm(totals.commissionPending)}
                   </th>
@@ -154,13 +154,13 @@ export function Statement() {
             {hasB1 && (
               <>
                 <tr>
-                  <th colSpan={6}>{`伙伴应付 Toh's Sign 已结清 Settled`}</th>
+                  <th colSpan={6}>{`伙伴应付 Toh's Sign · 已结清`}</th>
                   <th className="num" data-testid="total-b1-settled">
                     {rm(totals.b1Settled)}
                   </th>
                 </tr>
                 <tr>
-                  <th colSpan={6}>{`伙伴应付 Toh's Sign 待付 Owed (待付发票)`}</th>
+                  <th colSpan={6}>{`伙伴应付 Toh's Sign · 待付（待付发票）`}</th>
                   <th className="num" data-testid="total-b1-owed">
                     {rm(totals.b1Owed)}
                   </th>
