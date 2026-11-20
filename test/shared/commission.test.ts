@@ -54,7 +54,7 @@ describe('calcCommission', () => {
   it('cancelled gives zero', () => {
     expect(calcCommission({ ...paid, price: 1800, cancelled: true }, 'A1', DEFAULT_RULES)).toEqual({
       amount: 0,
-      basis: '案件已取消',
+      basis: '案件已放弃',
       status: '待处理',
     });
     expect(calcCommission({ ...paid, price: 1800, cancelled: true }, 'B1', DEFAULT_RULES).status).toBe('待付发票');
@@ -90,7 +90,7 @@ describe('applyCommission', () => {
     caseId: 'TS-2609-015', code: 'B1', amount: 1440, basis: '伙伴价', status: '已结清', paidAt: null, paidBy: null,
   };
   it('keeps a settled (已结清) B1 commission frozen', () => {
-    expect(applyCommission('TS-2609-015', settled, { amount: 0, basis: '案件已取消', status: '待付发票' }, 'B1')).toEqual(settled);
+    expect(applyCommission('TS-2609-015', settled, { amount: 0, basis: '案件已放弃', status: '待付发票' }, 'B1')).toEqual(settled);
   });
   it('recomputes a settled commission only when un-settling is explicitly allowed', () => {
     const owed = { amount: 1600, basis: 'new', status: '待付发票' as const };

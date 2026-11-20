@@ -10,8 +10,8 @@ describe('caseUpdateMessage', () => {
     );
   });
 
-  it('says 已取消 for a cancelled case', () => {
-    expect(caseUpdateMessage({ ...c, cancelled: true }, 'L')).toContain('进度更新：已取消。');
+  it('says 已放弃 for a cancelled case', () => {
+    expect(caseUpdateMessage({ ...c, cancelled: true }, 'L')).toContain('进度更新：已放弃。');
   });
 });
 

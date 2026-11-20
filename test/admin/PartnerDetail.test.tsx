@@ -174,3 +174,18 @@ describe('PartnerDetail', () => {
     expect(clear).toHaveBeenCalled();
   });
 });
+
+describe('PartnerDetail staff assignment', () => {
+  it('shows the staff name and reassigns with a PATCH', async () => {
+    const user = userEvent.setup();
+    get.mockResolvedValue(detail(demoPartner({ viewToken: 'tok123', assignedStaff: 'ann@tohsign.com' })));
+    patch.mockResolvedValue(demoPartner({ assignedStaff: 'ben@tohsign.com' }));
+    renderDetail(staff);
+    expect(await screen.findByText('Ann', { selector: 'dd' })).toBeTruthy();
+    const confirm = screen.getByRole('button', { name: '确认更改负责员工' }) as HTMLButtonElement;
+    expect(confirm.disabled).toBe(true);
+    await user.selectOptions(screen.getByLabelText('更改负责员工'), 'ben@tohsign.com');
+    await user.click(confirm);
+    await waitFor(() => expect(patch).toHaveBeenCalledWith('/api/admin/partners/TSP0003', { assignedStaff: 'ben@tohsign.com' }));
+  });
+});

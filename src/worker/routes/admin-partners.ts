@@ -4,7 +4,9 @@ import type { JWTVerifyGetKey } from 'jose';
 import { isEmail, normalizePhone, normalizeTin } from '../../shared/validate';
 import type { NewPartner, Partner, PartnerCode, PartnerStatus, Source, Team } from '../../shared/types';
 import { HttpError, adminErrorHandler, notFoundPartner } from '../admin-errors';
-import { MAX_TEXT, auditQuietly, has, klDay, readJson, refreshOrDrop } from '../admin-support';
+import {
+  MAX_TEXT, auditQuietly, checkAssignee, has, klDay, readAssignee, readJson, refreshOrDrop, staffQuery,
+} from '../admin-support';
 import { requireStaff } from '../access';
 import type { AppEnv, Env } from '../env';
 import type { Repo } from '../repo';
@@ -12,7 +14,7 @@ import { newViewToken } from '../token';
 import { dropPartnerView } from '../view-cache';
 
 const CODES: PartnerCode[] = ['A1', 'B1', 'C1'];
-const TEAMS: Team[] = ['Transmission', '市场部', 'IT'];
+const TEAMS: Team[] = ['Transmission', 'Marketing', 'IT'];
 const SOURCES: Source[] = ['上门', '线上'];
 const STATUSES: PartnerStatus[] = ['待审核', '活跃', '不活跃'];
 const FORBIDDEN = ['id', 'viewToken', 'registeredAt'];
@@ -95,6 +97,9 @@ function validatePartner(raw: unknown, mode: 'create' | 'patch', current?: Partn
     } else if (mode === 'create') out[k] = null;
   }
 
+  const assignee = readAssignee(b, 'assignedStaff');
+  if (assignee !== undefined) out.assignedStaff = assignee;
+
   if (mode === 'patch' && has(b, 'status')) {
     if (b.status === '不活跃') out.status = '不活跃';
     else if (b.status === '活跃' && current?.viewToken) out.status = '活跃';
@@ -146,12 +151,18 @@ export function adminPartners(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
     const status = c.req.query('status');
     if (status && !STATUSES.includes(status as PartnerStatus)) throw new HttpError(400, '状态不正确');
     const q = c.req.query('q');
-    return c.json(await c.var.repo.listPartners({ status: (status || undefined) as PartnerStatus | undefined, q: q || undefined }));
+    const assignedStaff = staffQuery(c.req.query('assignedStaff'), c.var.staff.email);
+    return c.json(await c.var.repo.listPartners({
+      status: (status || undefined) as PartnerStatus | undefined, q: q || undefined, assignedStaff,
+    }));
   });
 
   r.post('/', async (c) => {
     const input = validatePartner(await readJson(c.req.raw), 'create') as NewPartner;
     const repo = c.var.repo;
+    // A new partner belongs to whoever registers them unless another staff member is chosen.
+    if (input.assignedStaff === undefined) input.assignedStaff = c.var.staff.email.toLowerCase();
+    await checkAssignee(repo, input.assignedStaff, 'assignedStaff');
     const p = await repo.createPartner(input, c.var.staff.email);
     await auditQuietly(repo, c.var.staff.email, 'partner.create', 'partner', p.id, { code: p.code, name: p.name });
     return c.json(p, 201);
@@ -197,9 +208,16 @@ export function adminPartners(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
     const id = c.req.param('id');
     const current = await mustGet(repo, id);
     const patch = validatePartner(await readJson(c.req.raw), 'patch', current);
+    // Reassigning a partner never moves existing cases; only new cases follow the new staff.
+    if (patch.assignedStaff !== undefined && patch.assignedStaff !== current.assignedStaff) {
+      await checkAssignee(repo, patch.assignedStaff, 'assignedStaff');
+    }
     const updated = await repo.updatePartner(id, patch, c.var.staff.email);
     await refreshOrDrop(c.env, repo, id, updated.viewToken);
-    await auditQuietly(repo, c.var.staff.email, 'partner.update', 'partner', id, { fields: Object.keys(patch) });
+    await auditQuietly(repo, c.var.staff.email, 'partner.update', 'partner', id, {
+      fields: Object.keys(patch),
+      ...(patch.assignedStaff !== undefined ? { assignedStaff: { from: current.assignedStaff, to: patch.assignedStaff } } : {}),
+    });
     return c.json(updated);
   });
 

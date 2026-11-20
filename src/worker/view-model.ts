@@ -33,7 +33,11 @@ export interface MoneyTiles {
 export interface PartnerView {
   partner: { id: string; name: string; company: string | null; code: PartnerCode };
   /** `money` has one pair per kind that has rows (the partner's own code first), or the partner code's pair when none. */
-  tiles: { active: number; done: number; money: MoneyTiles[] };
+  /**
+   * `total` counts every case referred, dropped ones included. `pipelineRate` is the share not
+   * dropped, (total − dropped) ÷ total, as a percentage with one decimal; null when there are no cases.
+   */
+  tiles: { total: number; active: number; done: number; dropped: number; pipelineRate: number | null; money: MoneyTiles[] };
   cases: PartnerViewCase[];
   /** Per month, each kind summed apart. */
   months: Array<{ month: string; commission: number; b1: number }>;
@@ -76,6 +80,7 @@ export function buildPartnerView(p: Partner, cases: Case[], comms: Commission[],
   const sorted = [...cases].sort((a, b) => b.submittedAt.localeCompare(a.submittedAt) || b.id.localeCompare(a.id));
   let active = 0;
   let done = 0;
+  let dropped = 0;
   const buckets = new Map<MoneyKind, { pending: number; paid: number }>();
   const monthTotals = new Map<string, { commission: number; b1: number }>();
 
@@ -86,10 +91,9 @@ export function buildPartnerView(p: Partner, cases: Case[], comms: Commission[],
     const amount = cm ? cm.amount : null;
     const status: CommissionStatus = cm ? cm.status : code === 'B1' ? '待付发票' : '待处理';
 
-    if (!c.cancelled) {
-      if (c.step === 5) done++;
-      else active++;
-    }
+    if (c.cancelled) dropped++;
+    else if (c.step === 5) done++;
+    else active++;
     // Money (tiles and monthly totals alike) counts by commission status, cancelled cases included:
     // the Commission row is the source of truth (a cancelled case's row is normally RM 0).
     if (cm) {
@@ -130,7 +134,11 @@ export function buildPartnerView(p: Partner, cases: Case[], comms: Commission[],
 
   return {
     partner: { id: p.id, name: p.name, company: p.company, code: p.code },
-    tiles: { active, done, money },
+    tiles: {
+      total: viewCases.length, active, done, dropped,
+      pipelineRate: viewCases.length ? Math.round(((viewCases.length - dropped) / viewCases.length) * 1000) / 10 : null,
+      money,
+    },
     cases: viewCases,
     months,
     monthKinds: monthKinds.length ? [...monthKinds] : [own],

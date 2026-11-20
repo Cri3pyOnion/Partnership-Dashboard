@@ -126,7 +126,7 @@ export function Statement() {
                 <td>{l.basis}</td>
                 <td>
                   {l.status}
-                  {l.cancelled && <span className="muted"> · 已取消</span>}
+                  {l.cancelled && <span className="muted"> · 已放弃</span>}
                 </td>
                 <td className="num">
                   <Amount amount={l.amount} code={l.code} pending={l.pending} />

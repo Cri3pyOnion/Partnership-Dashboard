@@ -17,7 +17,7 @@ const put = api.put as ReturnType<typeof vi.fn>;
 const settings = { commissionRules: DEFAULT_RULES, licenceTypes: ['营业执照', '招牌执照'], inactiveDays: 90 };
 const staffList = [
   { email: 'boss@tohsign.com', name: 'Boss', role: 'admin', team: 'IT', active: true },
-  { email: 'clerk@tohsign.com', name: 'Clerk', role: 'staff', team: '市场部', active: true },
+  { email: 'clerk@tohsign.com', name: 'Clerk', role: 'staff', team: 'Marketing', active: true },
 ];
 
 function renderPage() {

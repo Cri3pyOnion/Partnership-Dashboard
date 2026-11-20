@@ -13,13 +13,14 @@ export const demoPartner = (over: Partial<Partner> = {}): Partner => ({
   company: 'Lim & Co. Accounting',
   code: 'C1',
   referralName: null,
-  filledBy: '市场部',
+  filledBy: 'Marketing',
   source: '线上',
   bankName: 'Maybank',
   bankAccount: DEMO_BANK_ACCOUNT,
   status: '活跃',
   viewToken: null,
   registeredAt: '2026-08-30',
+  assignedStaff: null,
   ...over,
 });
 
@@ -29,6 +30,7 @@ const base = {
   cancelled: false,
   invoiceNo: null,
   notesInternal: 'internal: client was rude on the phone',
+  handledBy: null,
 };
 
 export const demoCases = (): Case[] => [

@@ -6,12 +6,15 @@ import type { Case, Partner } from '../../shared/types';
 import { api, errorText } from '../api';
 import { ErrorBanner } from '../ErrorBanner';
 import { klDate } from '../format';
+import { staffName, useStaffDirectory } from '../staff-directory';
 
 export function Cases() {
   const [params, setParams] = useSearchParams();
   const partnerId = params.get('partnerId') ?? '';
   const step = params.get('step') ?? '';
   const month = params.get('month') ?? '';
+  const handler = params.get('handledBy') ?? '';
+  const staff = useStaffDirectory();
   const [rows, setRows] = useState<Case[] | null>(null);
   const [partners, setPartners] = useState<Partner[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -29,6 +32,7 @@ export function Cases() {
     if (partnerId) qs.set('partnerId', partnerId);
     if (step) qs.set('step', step);
     if (month) qs.set('month', month);
+    if (handler) qs.set('handledBy', handler);
     setRows(null);
     api
       .get<Case[]>(`/api/admin/cases${qs.size ? `?${qs}` : ''}`)
@@ -37,7 +41,7 @@ export function Cases() {
     return () => {
       live = false;
     };
-  }, [partnerId, step, month]);
+  }, [partnerId, step, month, handler]);
 
   const setFilter = (key: string, value: string) => {
     const next = new URLSearchParams(params);
@@ -73,13 +77,22 @@ export function Cases() {
             </option>
           ))}
         </select>
+        <select aria-label="处理员工" value={handler} onChange={(e) => setFilter('handledBy', e.target.value)}>
+          <option value="">全部员工</option>
+          <option value="me">我负责的</option>
+          {staff.map((s) => (
+            <option key={s.email} value={s.email}>
+              {s.name}
+            </option>
+          ))}
+        </select>
         <input type="month" aria-label="月份" value={month} onChange={(e) => setFilter('month', e.target.value)} />
       </div>
       <div className="table-wrap">
         <table>
           <thead>
             <tr>
-              {['案件编号', '客户', '伙伴', '执照类型', '进度', '提交日期', '价格'].map((h) => (
+              {['案件编号', '客户', '伙伴', '执照类型', '处理员工', '进度', '提交日期', '价格'].map((h) => (
                 <th key={h}>{h}</th>
               ))}
             </tr>
@@ -87,14 +100,14 @@ export function Cases() {
           <tbody>
             {rows === null && (
               <tr>
-                <td colSpan={7} className="muted">
+                <td colSpan={8} className="muted">
                   载入中…
                 </td>
               </tr>
             )}
             {rows?.length === 0 && (
               <tr>
-                <td colSpan={7} className="muted">
+                <td colSpan={8} className="muted">
                   没有符合条件的案件
                 </td>
               </tr>
@@ -107,6 +120,7 @@ export function Cases() {
                 <td>{c.clientName}</td>
                 <td>{nameOf(c.partnerId)}</td>
                 <td>{c.licenceType}</td>
+                <td>{staffName(staff, c.handledBy)}</td>
                 <td>{c.cancelled ? STEP_CANCELLED : CASE_STEPS[c.step]}</td>
                 <td>{klDate(c.submittedAt)}</td>
                 <td>{c.price === null ? '—' : rm(c.price)}</td>

@@ -17,7 +17,7 @@ const DAY = 86_400_000;
 const DB_DOWN = { error: '数据库暂时无法连接，请稍后再试' };
 
 const admin: Staff = { email: 'boss@tohsign.com', name: 'Boss', role: 'admin', team: 'IT', active: true };
-const clerk: Staff = { email: 'clerk@tohsign.com', name: 'Clerk', role: 'staff', team: '市场部', active: true };
+const clerk: Staff = { email: 'clerk@tohsign.com', name: 'Clerk', role: 'staff', team: 'Marketing', active: true };
 
 let sign: (email: string) => Promise<string>;
 let jwks: Awaited<ReturnType<typeof makeAccess>>['jwks'];

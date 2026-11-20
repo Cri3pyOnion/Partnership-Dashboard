@@ -5,7 +5,8 @@ import type { StepIndex } from '../../shared/status';
 import type { Case, Commission, NewCase, Partner } from '../../shared/types';
 import { HttpError, adminErrorHandler } from '../admin-errors';
 import {
-  MAX_TEXT, auditQuietly, bad, has, isDay, isMonth, klDay, mustMonth, readJson, readObject,
+  MAX_TEXT, auditQuietly, bad, checkAssignee, has, isDay, isMonth, klDay, mustMonth, readAssignee, readJson, readObject,
+  staffQuery,
 } from '../admin-support';
 import { requireStaff } from '../access';
 import type { AppEnv } from '../env';
@@ -70,6 +71,8 @@ function readCaseFields(b: Record<string, unknown>, licenceTypes: string[]): Par
   }
   if (has(b, 'submittedAt')) out.submittedAt = day(b, 'submittedAt');
   if (has(b, 'clientPaidAt')) out.clientPaidAt = b.clientPaidAt === null ? null : day(b, 'clientPaidAt');
+  const handler = readAssignee(b, 'handledBy');
+  if (handler !== undefined) out.handledBy = handler;
   return out;
 }
 
@@ -90,6 +93,7 @@ export function adminCases(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
       partnerId: c.req.query('partnerId') || undefined,
       step: stepQ === undefined ? undefined : (Number(stepQ) as StepIndex),
       month,
+      handledBy: staffQuery(c.req.query('handledBy'), c.var.staff.email),
     }));
   });
 
@@ -113,6 +117,9 @@ export function adminCases(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
     if (!partner) throw new HttpError(404, '找不到伙伴');
     if (partner.status === '待审核') throw new HttpError(400, '伙伴尚未批准');
     if (f.markup != null && partner.code !== 'C1') throw bad('markup', '只有 C1 伙伴可以加价');
+    // A case goes to the partner's staff unless someone else is chosen; an unassigned partner's case goes to its creator.
+    const handledBy = f.handledBy !== undefined ? f.handledBy : (partner.assignedStaff ?? c.var.staff.email.toLowerCase());
+    if (f.handledBy !== undefined) await checkAssignee(repo, handledBy, 'handledBy');
     // Validate the commission (markup cap) before anything is written.
     nextCommission({ price: f.price ?? null, markup: f.markup ?? null, clientPaid: false, cancelled: false }, '', partner.code, null, settings.commissionRules);
 
@@ -127,6 +134,7 @@ export function adminCases(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
       markup: f.markup ?? null,
       invoiceNo: f.invoiceNo ?? null,
       notesInternal: f.notesInternal ?? null,
+      handledBy,
       ...(f.submittedAt !== undefined ? { submittedAt: f.submittedAt } : {}),
     };
     const created = await repo.createCase(input, c.var.staff.email);
@@ -157,6 +165,7 @@ export function adminCases(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
       throw bad('clientPaidAt', '请先标记客户已付款');
     }
     if (Object.keys(out).length === 0) throw new HttpError(400, '没有需要更新的栏位');
+    if (out.handledBy !== undefined && out.handledBy !== cur.handledBy) await checkAssignee(repo, out.handledBy, 'handledBy');
 
     const code = codeOf(partner, existing);
     if (out.markup != null && code !== 'C1') throw bad('markup', '只有 C1 伙伴可以加价');
@@ -171,7 +180,10 @@ export function adminCases(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
 
     const updated = await repo.updateCase(id, out, c.var.staff.email);
     const rc = await recalcAfterCommit(c.env, repo, updated, partner, existing, settings.commissionRules, opts);
-    await auditQuietly(repo, c.var.staff.email, 'case.update', 'case', id, { fields: Object.keys(out) });
+    await auditQuietly(repo, c.var.staff.email, 'case.update', 'case', id, {
+      fields: Object.keys(out),
+      ...(out.handledBy !== undefined ? { handledBy: { from: cur.handledBy, to: out.handledBy } } : {}),
+    });
     return c.json({ ...updated, ...rc });
   });
 

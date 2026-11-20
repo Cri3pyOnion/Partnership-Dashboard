@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { isEmail, normalizePhone, normalizeTin } from '../../shared/validate';
 import type { Partner, PartnerCode, Source, Team } from '../../shared/types';
 import { ApiError, api, errorText } from '../api';
+import { useMe } from '../me';
+import { StaffSelect, useStaffDirectory } from '../staff-directory';
 
 interface Values {
   filledBy: Team;
@@ -16,6 +18,7 @@ interface Values {
   source: Source | '';
   bankName: string;
   bankAccount: string;
+  assignedStaff: string; // '' = unassigned
 }
 
 const CODES: Array<{ code: PartnerCode; text: string }> = [
@@ -36,6 +39,7 @@ const BLANK: Values = {
   source: '',
   bankName: '',
   bankAccount: '',
+  assignedStaff: '',
 };
 
 function fromPartner(p: Partner): Values {
@@ -51,6 +55,7 @@ function fromPartner(p: Partner): Values {
     source: p.source ?? '',
     bankName: p.bankName ?? '',
     bankAccount: p.bankAccount ?? '',
+    assignedStaff: p.assignedStaff ?? '',
   };
 }
 
@@ -81,6 +86,7 @@ function check(v: Values): { errors: Record<string, string>; payload?: Record<st
       source: v.source || null,
       bankName: orNull(v.bankName),
       bankAccount: orNull(v.bankAccount),
+      assignedStaff: v.assignedStaff || null,
     },
   };
 }
@@ -103,7 +109,11 @@ function Field({ id, label, en, required, error, hint, children }: { id: string;
 export function PartnerForm({ partner, onSaved, onCancel }: { partner?: Partner; onSaved?: (p: Partner) => void; onCancel?: () => void }) {
   const navigate = useNavigate();
   const editing = partner !== undefined;
-  const [v, setV] = useState<Values>(partner ? fromPartner(partner) : BLANK);
+  const me = useMe();
+  const staff = useStaffDirectory();
+  // A new partner is assigned to the person registering them unless they pick someone else.
+  const blank = (): Values => ({ ...BLANK, assignedStaff: me?.email.toLowerCase() ?? '' });
+  const [v, setV] = useState<Values>(partner ? fromPartner(partner) : blank());
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [summary, setSummary] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -157,7 +167,7 @@ export function PartnerForm({ partner, onSaved, onCancel }: { partner?: Partner;
     }
   }
 
-  const teams: Team[] = v.filledBy === 'IT' ? ['Transmission', '市场部', 'IT'] : ['Transmission', '市场部'];
+  const teams: Team[] = v.filledBy === 'IT' ? ['Transmission', 'Marketing', 'IT'] : ['Transmission', 'Marketing'];
 
   return (
     <form className="form" onSubmit={submit} noValidate>
@@ -172,6 +182,10 @@ export function PartnerForm({ partner, onSaved, onCancel }: { partner?: Partner;
           ))}
         </div>
       </fieldset>
+
+      <Field id="f-staff" label="负责员工" en="Staff in charge" error={errors.assignedStaff} hint="新案件默认交给这位员工">
+        <StaffSelect id="f-staff" label="负责员工" value={v.assignedStaff} list={staff} invalid={bad('assignedStaff')} onChange={(x) => set('assignedStaff', x)} />
+      </Field>
 
       <Field id="f-name" label="姓名" en="Name" required error={errors.name}>
         <input id="f-name" value={v.name} aria-invalid={bad('name')} onChange={(e) => set('name', e.target.value)} autoComplete="off" />
@@ -254,7 +268,7 @@ export function PartnerForm({ partner, onSaved, onCancel }: { partner?: Partner;
               type="button"
               className="btn"
               onClick={() => {
-                setV(BLANK);
+                setV(blank());
                 setErrors({});
                 setSummary(null);
               }}

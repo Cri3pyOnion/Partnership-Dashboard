@@ -4,6 +4,7 @@ import type { Partner, PartnerStatus } from '../../shared/types';
 import { api, errorText } from '../api';
 import { ErrorBanner } from '../ErrorBanner';
 import { klDate } from '../format';
+import { staffName, useStaffDirectory } from '../staff-directory';
 
 const STATUSES: PartnerStatus[] = ['待审核', '活跃', '不活跃'];
 
@@ -11,6 +12,8 @@ export function Partners() {
   const [params, setParams] = useSearchParams();
   const status = params.get('status') ?? '';
   const q = params.get('q') ?? '';
+  const owner = params.get('assignedStaff') ?? '';
+  const staff = useStaffDirectory();
   const [text, setText] = useState(q);
   const [rows, setRows] = useState<Partner[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -32,6 +35,7 @@ export function Partners() {
     const qs = new URLSearchParams();
     if (status) qs.set('status', status);
     if (q) qs.set('q', q);
+    if (owner) qs.set('assignedStaff', owner);
     setRows(null);
     api
       .get<Partner[]>(`/api/admin/partners${qs.size ? `?${qs}` : ''}`)
@@ -40,7 +44,7 @@ export function Partners() {
     return () => {
       live = false;
     };
-  }, [status, q]);
+  }, [status, q, owner]);
 
   return (
     <section>
@@ -72,13 +76,31 @@ export function Partners() {
             ))}
           </select>
         </label>
+        <select
+          aria-label="负责员工"
+          value={owner}
+          onChange={(e) => {
+            const next = new URLSearchParams(params);
+            if (e.target.value) next.set('assignedStaff', e.target.value);
+            else next.delete('assignedStaff');
+            setParams(next, { replace: true });
+          }}
+        >
+          <option value="">全部员工</option>
+          <option value="me">我负责的</option>
+          {staff.map((s) => (
+            <option key={s.email} value={s.email}>
+              {s.name}
+            </option>
+          ))}
+        </select>
         <input type="search" aria-label="搜索" placeholder="搜索编号、姓名、公司、电话" value={text} onChange={(e) => setText(e.target.value)} />
       </div>
       <div className="table-wrap">
         <table>
           <thead>
             <tr>
-              {['伙伴编号', '姓名', '电话', '电邮', '公司名称', '代码', '推荐人', '填写团队', '登记日期', '状态'].map((h) => (
+              {['伙伴编号', '姓名', '电话', '电邮', '公司名称', '代码', '推荐人', '填写团队', '负责员工', '登记日期', '状态'].map((h) => (
                 <th key={h}>{h}</th>
               ))}
             </tr>
@@ -86,14 +108,14 @@ export function Partners() {
           <tbody>
             {rows === null && (
               <tr>
-                <td colSpan={10} className="muted">
+                <td colSpan={11} className="muted">
                   载入中…
                 </td>
               </tr>
             )}
             {rows?.length === 0 && (
               <tr>
-                <td colSpan={10} className="muted">
+                <td colSpan={11} className="muted">
                   没有符合条件的伙伴
                 </td>
               </tr>
@@ -112,6 +134,7 @@ export function Partners() {
                 <td>{p.code}</td>
                 <td>{p.referralName ?? '—'}</td>
                 <td>{p.filledBy}</td>
+                <td>{staffName(staff, p.assignedStaff)}</td>
                 <td>{klDate(p.registeredAt)}</td>
                 <td>
                   <span className={`pill s-${p.status}`}>{p.status}</span>

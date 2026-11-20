@@ -86,3 +86,29 @@ export function isDay(s: unknown): s is string {
 }
 
 export const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Reads an optional staff-assignment field: absent → undefined, null or blank → null, else the
+ * email lowercased. Shape only; `checkAssignee` confirms the person exists and is active.
+ */
+export function readAssignee(b: Record<string, unknown>, k: string): string | null | undefined {
+  if (!has(b, k)) return undefined;
+  const v = b[k];
+  if (v === null) return null;
+  if (typeof v !== 'string') throw bad(k, '请选择员工');
+  const t = v.trim().toLowerCase();
+  return t === '' ? null : t;
+}
+
+/** Only an active staff member can be assigned (one repo call). */
+export async function checkAssignee(repo: Repo, email: string | null | undefined, field: string): Promise<void> {
+  if (!email) return;
+  const s = await repo.getStaff(email);
+  if (!s || !s.active) throw bad(field, '请选择有效的员工');
+}
+
+/** `?<name>=me` means the caller; any other value is used as an email. */
+export function staffQuery(v: string | undefined, me: string): string | undefined {
+  if (!v) return undefined;
+  return v === 'me' ? me.toLowerCase() : v.trim().toLowerCase();
+}

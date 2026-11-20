@@ -75,11 +75,12 @@ export class FakeRepo implements Repo {
     this.staff.set(s.email, clone(s));
   }
 
-  async listPartners(f: { status?: PartnerStatus; q?: string }) {
+  async listPartners(f: { status?: PartnerStatus; q?: string; assignedStaff?: string }) {
     this.gate();
     const q = f.q?.trim().toLowerCase();
     return [...this.partners.values()]
       .filter((p) => !f.status || p.status === f.status)
+      .filter((p) => !f.assignedStaff || p.assignedStaff === f.assignedStaff)
       .filter((p) => !q || [p.id, p.name, p.company, p.phone].some((v) => v?.toLowerCase().includes(q)))
       .sort((a, b) => a.id.localeCompare(b.id))
       .map(clone);
@@ -102,6 +103,7 @@ export class FakeRepo implements Repo {
       status: '待审核',
       viewToken: null,
       registeredAt: klDate(this.now()),
+      assignedStaff: input.assignedStaff ?? null,
     };
     this.partners.set(p.id, p);
     return clone(p);
@@ -121,12 +123,13 @@ export class FakeRepo implements Repo {
     return clone(next);
   }
 
-  async listCases(f: { partnerId?: string; step?: StepIndex; month?: string }) {
+  async listCases(f: { partnerId?: string; step?: StepIndex; month?: string; handledBy?: string }) {
     this.gate();
     const range = f.month ? monthRange(f.month) : null;
     return [...this.cases.values()]
       .filter((c) => !f.partnerId || c.partnerId === f.partnerId)
       .filter((c) => f.step === undefined || c.step === f.step)
+      .filter((c) => !f.handledBy || c.handledBy === f.handledBy)
       .filter((c) => !range || (c.submittedAt >= range[0] && c.submittedAt < range[1]))
       .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt) || b.id.localeCompare(a.id))
       .map(clone);
@@ -152,6 +155,7 @@ export class FakeRepo implements Repo {
       clientPaid: false,
       clientPaidAt: null,
       submittedAt: submittedAt ?? klDate(at),
+      handledBy: rest.handledBy ?? null,
     };
     this.cases.set(c.id, c);
     return clone(c);

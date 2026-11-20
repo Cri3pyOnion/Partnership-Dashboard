@@ -14,7 +14,7 @@ const AUD = 'test-aud-tag';
 const ENV = { ACCESS_TEAM_DOMAIN: TEAM, ACCESS_AUD: AUD } as Env;
 
 const admin: Staff = { email: 'boss@tohsign.com', name: 'Boss', role: 'admin', team: 'IT', active: true };
-const staff: Staff = { email: 'clerk@tohsign.com', name: 'Clerk', role: 'staff', team: '市场部', active: true };
+const staff: Staff = { email: 'clerk@tohsign.com', name: 'Clerk', role: 'staff', team: 'Marketing', active: true };
 const gone: Staff = { email: 'gone@tohsign.com', name: 'Gone', role: 'admin', team: null, active: false };
 
 let privateKey: CryptoKey;
@@ -173,7 +173,7 @@ describe('GET /api/admin/me', () => {
     const app = createApp({ makeRepo: () => repo, jwks });
     const res = await app.request('/api/admin/me', { headers: { 'Cf-Access-Jwt-Assertion': await sign(staff.email) } }, ENV);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ email: staff.email, name: 'Clerk', role: 'staff', team: '市场部' });
+    expect(await res.json()).toEqual({ email: staff.email, name: 'Clerk', role: 'staff', team: 'Marketing' });
   });
 
   it('401 without a token', async () => {

@@ -188,7 +188,7 @@ describe('staff', () => {
   it("a deactivated staff member's next request is a 403", async () => {
     const { req } = await setupAdmin();
     expect((await req(clerk, 'GET', '/api/admin/cases')).status).toBe(200);
-    const off = await req(admin, 'PUT', `/api/admin/staff/${clerk.email}`, { name: 'Clerk', role: 'staff', team: '市场部', active: false });
+    const off = await req(admin, 'PUT', `/api/admin/staff/${clerk.email}`, { name: 'Clerk', role: 'staff', team: 'Marketing', active: false });
     expect(off.status).toBe(200);
     expect((await req(clerk, 'GET', '/api/admin/cases')).status).toBe(403);
     expect((await req(clerk, 'GET', '/api/admin/me')).status).toBe(403);

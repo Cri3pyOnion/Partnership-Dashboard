@@ -27,7 +27,7 @@ export function calcCommission(
   rules: CommissionRules,
 ): CommissionCalc {
   if (c.cancelled) {
-    return { amount: 0, basis: '案件已取消', status: code === 'B1' ? '待付发票' : '待处理' };
+    return { amount: 0, basis: '案件已放弃', status: code === 'B1' ? '待付发票' : '待处理' };
   }
   const price = c.price ?? 0;
   if (code === 'A1') {

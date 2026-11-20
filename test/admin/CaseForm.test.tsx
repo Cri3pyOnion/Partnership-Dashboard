@@ -83,3 +83,19 @@ describe('CaseForm', () => {
     expect(await screen.findByText('请填写客户姓名')).toBeTruthy();
   });
 });
+
+describe('CaseForm handler', () => {
+  it("suggests the partner's staff member and sends a changed handler", async () => {
+    const user = userEvent.setup();
+    partners[0] = { ...partners[0], assignedStaff: 'ann@tohsign.com' };
+    post.mockResolvedValue({ id: 'TS-2611-021' });
+    renderForm();
+    await screen.findByRole('option', { name: /Alice/ });
+    await user.selectOptions(screen.getByLabelText(/^伙伴/), 'TSP0001');
+    expect((screen.getByLabelText('处理员工') as HTMLSelectElement).value).toBe('ann@tohsign.com');
+    await user.selectOptions(screen.getByLabelText('处理员工'), 'ben@tohsign.com');
+    await user.type(screen.getByLabelText(/^客户姓名/), '李先生');
+    await user.click(screen.getByRole('button', { name: '建立案件' }));
+    await waitFor(() => expect(post).toHaveBeenCalledWith('/api/admin/cases', expect.objectContaining({ handledBy: 'ben@tohsign.com' })));
+  });
+});

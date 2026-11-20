@@ -7,6 +7,7 @@ import { api, errorText } from '../api';
 import { ErrorBanner } from '../ErrorBanner';
 import { klDate, klDateTime } from '../format';
 import { useMe } from '../me';
+import { StaffSelect, staffName, useStaffDirectory } from '../staff-directory';
 import { PartnerForm } from './PartnerForm';
 
 interface Detail {
@@ -34,6 +35,8 @@ export function PartnerDetail() {
   const [editing, setEditing] = useState(false);
   const [freshLink, setFreshLink] = useState<string | null>(null);
   const [code, setCode] = useState<PartnerCode | null>(null);
+  const [owner, setOwner] = useState<string | null>(null);
+  const staff = useStaffDirectory();
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -45,6 +48,7 @@ export function PartnerDetail() {
       const d = await api.get<Detail>(`/api/admin/partners/${encodeURIComponent(id)}`);
       setData(d);
       setCode(d.partner.code);
+      setOwner(d.partner.assignedStaff ?? '');
     } catch (e) {
       setError(errorText(e));
     }
@@ -104,6 +108,13 @@ export function PartnerDetail() {
   const changeCode = () =>
     run(async () => {
       await api.patch(base, { code });
+      await load();
+    });
+
+  // Only new cases follow the new staff member; existing cases keep their handler.
+  const changeOwner = () =>
+    run(async () => {
+      await api.patch(base, { assignedStaff: owner || null });
       await load();
     });
 
@@ -188,6 +199,7 @@ export function PartnerDetail() {
         />
       ) : (
         <dl className="details">
+          <Row label="负责员工">{staffName(staff, partner.assignedStaff)}</Row>
           <Row label="填写团队">{partner.filledBy}</Row>
           <Row label="电话号码">{partner.phone}</Row>
           <Row label="电邮">{partner.email}</Row>
@@ -216,6 +228,15 @@ export function PartnerDetail() {
         </button>
       </div>
 
+      <div className="inline-form">
+        <label htmlFor="chg-owner">更改负责员工</label>
+        <StaffSelect id="chg-owner" label="更改负责员工" value={owner ?? ''} list={staff} onChange={setOwner} />
+        <button type="button" className="btn" aria-label="确认更改负责员工" disabled={busy || (owner ?? '') === (partner.assignedStaff ?? '')} onClick={changeOwner}>
+          确认更改
+        </button>
+        <span className="muted">现有案件不变，新案件交给新员工</span>
+      </div>
+
       <h2>案件</h2>
       {cases.length === 0 ? (
         <p className="muted">还没有案件</p>
@@ -229,6 +250,7 @@ export function PartnerDetail() {
                 <th>类型</th>
                 <th>进度</th>
                 <th>提交日期</th>
+                <th>处理员工</th>
               </tr>
             </thead>
             <tbody>
@@ -241,6 +263,7 @@ export function PartnerDetail() {
                   <td>{c.licenceType}</td>
                   <td>{c.cancelled ? STEP_CANCELLED : CASE_STEPS[c.step]}</td>
                   <td>{klDate(c.submittedAt)}</td>
+                  <td>{staffName(staff, c.handledBy)}</td>
                 </tr>
               ))}
             </tbody>

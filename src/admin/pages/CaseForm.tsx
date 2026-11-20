@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import type { Case, Partner } from '../../shared/types';
 import { ApiError, api, errorText } from '../api';
 import { ErrorBanner } from '../ErrorBanner';
+import { useMe } from '../me';
+import { StaffSelect, useStaffDirectory } from '../staff-directory';
 
 function Field({ id, label, error, children }: { id: string; label: string; error?: string; children: ReactNode }) {
   return (
@@ -37,6 +39,9 @@ export function CaseForm() {
   const [clientPhone, setClientPhone] = useState('');
   const [price, setPrice] = useState('');
   const [markup, setMarkup] = useState('');
+  const [handledBy, setHandledBy] = useState('');
+  const me = useMe();
+  const staff = useStaffDirectory();
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -58,6 +63,13 @@ export function CaseForm() {
 
   const chosen = partners.find((p) => p.id === partnerId);
 
+  // Picking a partner suggests their staff member (or me, for an unassigned partner); it can still be changed.
+  function choosePartner(id: string) {
+    setPartnerId(id);
+    const p = partners.find((x) => x.id === id);
+    setHandledBy(p ? (p.assignedStaff ?? me?.email.toLowerCase() ?? '') : '');
+  }
+
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (busy) return;
@@ -77,6 +89,8 @@ export function CaseForm() {
     if (council.trim()) body.council = council.trim();
     if (p !== null && p !== undefined) body.price = p;
     if (m !== null && m !== undefined) body.markup = m;
+    // Blank means "let the server decide": the partner's staff, else whoever creates the case.
+    if (handledBy) body.handledBy = handledBy;
 
     setBusy(true);
     setError(null);
@@ -102,7 +116,7 @@ export function CaseForm() {
       <ErrorBanner message={error} onClose={() => setError(null)} />
       <form className="form" onSubmit={submit} noValidate>
         <Field id="c-partner" label="伙伴 Partner" error={errors.partnerId}>
-          <select id="c-partner" value={partnerId} onChange={(e) => setPartnerId(e.target.value)} aria-invalid={!!errors.partnerId}>
+          <select id="c-partner" value={partnerId} onChange={(e) => choosePartner(e.target.value)} aria-invalid={!!errors.partnerId}>
             <option value="">请选择</option>
             {partners.map((p) => (
               <option key={p.id} value={p.id}>
@@ -110,6 +124,9 @@ export function CaseForm() {
               </option>
             ))}
           </select>
+        </Field>
+        <Field id="c-handler" label="处理员工 Handled by" error={errors.handledBy}>
+          <StaffSelect id="c-handler" label="处理员工" value={handledBy} list={staff} invalid={!!errors.handledBy} onChange={setHandledBy} />
         </Field>
         <Field id="c-licence" label="执照类型 Licence type" error={errors.licenceType}>
           <select id="c-licence" value={licenceType} onChange={(e) => setLicenceType(e.target.value)} aria-invalid={!!errors.licenceType}>

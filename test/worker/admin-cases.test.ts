@@ -300,7 +300,7 @@ describe('PATCH /api/admin/cases/:id', () => {
   it("any case change refreshes the partner's KV page", async () => {
     const { req, c, p, app } = await one();
     const first = await (await app.request(`/p/${p.token}`, {}, ENV)).text();
-    expect(first).toContain('<span class="badge">已收件</span>');
+    expect(first).toContain('<span class="badge">洽谈中</span>');
     await req(clerk, 'PATCH', `/api/admin/cases/${c.id}`, { step: 2 });
     const second = await (await app.request(`/p/${p.token}`, {}, ENV)).text();
     expect(second).toContain('<span class="badge">已递交政府部门</span>');

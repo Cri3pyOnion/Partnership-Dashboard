@@ -33,14 +33,14 @@ export interface Repo {
   saveStaff(s: Staff, by: string): Promise<void>;
 
   /** `q` matches id, name, company or phone, case-insensitively. Ordered by id. */
-  listPartners(f: { status?: PartnerStatus; q?: string }): Promise<Partner[]>;
+  listPartners(f: { status?: PartnerStatus; q?: string; assignedStaff?: string }): Promise<Partner[]>;
   getPartner(id: string): Promise<Partner | null>;
   getPartnerByToken(token: string): Promise<Partner | null>;
   createPartner(input: NewPartner, by: string): Promise<Partner>;
   updatePartner(id: string, patch: Partial<Partner>, by: string): Promise<Partner>;
 
   /** `month` is 'YYYY-MM' on submittedAt. Newest first. */
-  listCases(f: { partnerId?: string; step?: StepIndex; month?: string }): Promise<Case[]>;
+  listCases(f: { partnerId?: string; step?: StepIndex; month?: string; handledBy?: string }): Promise<Case[]>;
   getCase(id: string): Promise<Case | null>;
   createCase(input: NewCase, by: string): Promise<Case>;
   /** Writes a case_steps_history row only when `step` actually changes. */

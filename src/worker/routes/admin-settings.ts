@@ -8,7 +8,7 @@ import { MAX_TEXT, auditQuietly, bad, has, readJson, readObject } from '../admin
 import { requireStaff } from '../access';
 import type { AppEnv } from '../env';
 
-const TEAMS: Team[] = ['Transmission', '市场部', 'IT'];
+const TEAMS: Team[] = ['Transmission', 'Marketing', 'IT'];
 const BAD_FIELDS = '请检查红色栏位';
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -149,5 +149,16 @@ export function adminLicenceTypes(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
   r.onError(adminErrorHandler);
   r.use('*', requireStaff({ jwks }));
   r.get('/', async (c) => c.json({ licenceTypes: (await c.var.repo.getSettings()).licenceTypes }));
+  return r;
+}
+
+/** Active staff names for the assignment pickers. Any staff may read it; emails and names only. */
+export function adminStaffDirectory(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
+  const r = new Hono<AppEnv>();
+  r.onError(adminErrorHandler);
+  r.use('*', requireStaff({ jwks }));
+  r.get('/', async (c) => c.json(
+    (await c.var.repo.listStaff()).filter((s) => s.active).map((s) => ({ email: s.email, name: s.name })),
+  ));
   return r;
 }

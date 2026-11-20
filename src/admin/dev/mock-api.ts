@@ -10,13 +10,13 @@ const MARKER = 'TOHS_DEV_MOCK_API';
 const token = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('');
 
 const partners: Partner[] = [
-  { id: 'TSP0001', name: 'Tan Wei Ming', phone: '+60123384521', email: 'weiming@tan.my', tin: 'IG12345678901', company: null, code: 'A1', referralName: null, filledBy: 'Transmission', source: '上门', bankName: 'CIMB', bankAccount: '7001234567', status: '活跃', viewToken: token(), registeredAt: '2026-08-12' },
-  { id: 'TSP0002', name: 'Lim Siew Ling', phone: '+60162458830', email: 'siewling@limco.my', tin: 'C2584463202', company: 'Lim & Co. Accounting', code: 'C1', referralName: 'Tan Wei Ming', filledBy: '市场部', source: '线上', bankName: 'Maybank', bankAccount: '5123-4567-8901', status: '待审核', viewToken: null, registeredAt: '2026-11-17' },
-  { id: 'TSP0003', name: 'Ahmad Faizal', phone: '+60191112222', email: 'faizal@example.my', tin: null, company: 'Faizal Trading', code: 'B1', referralName: null, filledBy: 'Transmission', source: null, bankName: null, bankAccount: null, status: '不活跃', viewToken: token(), registeredAt: '2026-05-02' },
+  { id: 'TSP0001', name: 'Tan Wei Ming', phone: '+60123384521', email: 'weiming@tan.my', tin: 'IG12345678901', company: null, code: 'A1', referralName: null, filledBy: 'Transmission', source: '上门', bankName: 'CIMB', bankAccount: '7001234567', status: '活跃', viewToken: token(), registeredAt: '2026-08-12', assignedStaff: 'admin@example.my' },
+  { id: 'TSP0002', name: 'Lim Siew Ling', phone: '+60162458830', email: 'siewling@limco.my', tin: 'C2584463202', company: 'Lim & Co. Accounting', code: 'C1', referralName: 'Tan Wei Ming', filledBy: 'Marketing', source: '线上', bankName: 'Maybank', bankAccount: '5123-4567-8901', status: '待审核', viewToken: null, registeredAt: '2026-11-17', assignedStaff: 'staff@example.my' },
+  { id: 'TSP0003', name: 'Ahmad Faizal', phone: '+60191112222', email: 'faizal@example.my', tin: null, company: 'Faizal Trading', code: 'B1', referralName: null, filledBy: 'Transmission', source: null, bankName: null, bankAccount: null, status: '不活跃', viewToken: token(), registeredAt: '2026-05-02', assignedStaff: null },
 ];
 
 const cases: Case[] = [
-  { id: 'TS-2611-001', partnerId: 'TSP0001', clientName: 'Kedai Kopi Ah Seng', clientPhone: null, licenceType: '营业执照', council: 'MBPJ', step: 2, cancelled: false, missingDocs: null, submittedAt: '2026-11-03', price: 1800, markup: null, invoiceNo: null, clientPaid: false, clientPaidAt: null, notesInternal: null },
+  { id: 'TS-2611-001', partnerId: 'TSP0001', clientName: 'Kedai Kopi Ah Seng', clientPhone: null, licenceType: '营业执照', council: 'MBPJ', step: 2, cancelled: false, missingDocs: null, submittedAt: '2026-11-03', price: 1800, markup: null, invoiceNo: null, clientPaid: false, clientPaidAt: null, notesInternal: null, handledBy: 'admin@example.my' },
 ];
 
 const staffRoutes = createStaffMock(partners, cases);
@@ -49,7 +49,7 @@ function validate(b: Record<string, unknown>, create: boolean): { fields: Record
     const t = typeof b.tin === 'string' ? normalizeTin(b.tin) : null;
     t ? (out.tin = t) : (fields.tin = '税号格式不正确');
   } else if ('tin' in b) out.tin = null;
-  for (const k of ['filledBy', 'company', 'referralName', 'source', 'bankName', 'bankAccount', 'status'] as const) if (k in b) out[k] = b[k];
+  for (const k of ['filledBy', 'company', 'referralName', 'source', 'bankName', 'bankAccount', 'status', 'assignedStaff'] as const) if (k in b) out[k] = b[k];
   return { fields, out };
 }
 
@@ -73,12 +73,14 @@ export function installMockApi(): void {
     if (path === '/partners' && method === 'GET') {
       const status = url.searchParams.get('status');
       const q = (url.searchParams.get('q') ?? '').toLowerCase();
-      return json(200, partners.filter((p) => (!status || p.status === status) && (!q || [p.id, p.name, p.company ?? '', p.phone].some((s) => s.toLowerCase().includes(q)))));
+      const ownerQ = url.searchParams.get('assignedStaff');
+      const owner = ownerQ === 'me' ? me().email : ownerQ;
+      return json(200, partners.filter((p) => (!owner || p.assignedStaff === owner) && (!status || p.status === status) && (!q || [p.id, p.name, p.company ?? '', p.phone].some((s) => s.toLowerCase().includes(q)))));
     }
     if (path === '/partners' && method === 'POST') {
       const { fields, out } = validate(body, true);
       if (Object.keys(fields).length) return json(400, { error: '请检查红色栏位', fields });
-      const p: Partner = { tin: null, company: null, referralName: null, source: null, bankName: null, bankAccount: null, ...out, id: `TSP${String(partners.length + 1).padStart(4, '0')}`, status: '待审核', viewToken: null, registeredAt: new Date().toISOString().slice(0, 10) } as Partner;
+      const p: Partner = { tin: null, company: null, referralName: null, source: null, bankName: null, bankAccount: null, assignedStaff: me().email, ...out, id: `TSP${String(partners.length + 1).padStart(4, '0')}`, status: '待审核', viewToken: null, registeredAt: new Date().toISOString().slice(0, 10) } as Partner;
       partners.push(p);
       return json(201, p);
     }
