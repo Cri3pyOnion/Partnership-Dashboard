@@ -219,3 +219,44 @@ describe('20261120000003/4: staff assignment and the Marketing team', () => {
     expect(r.rows[0].n).toBe(1);
   });
 });
+
+describe('20261120000005_link_view_throttle: log_link_view', () => {
+  it('drops repeats inside 30 minutes, keeps 100 rows per partner, and trims old rows on migrate', async () => {
+    const db = new PGlite();
+    await db.exec(migration);
+    await db.exec(`insert into partners (id, name, phone, email, code, filled_by, status)
+      values ('TSP0001', 'P', '+60123456789', 'p@x.my', 'A1', 'Marketing', '活跃'),
+             ('TSP0002', 'Q', '+60123456780', 'q@x.my', 'A1', 'Marketing', '活跃')`);
+    const log = async (id: string, c: string | null) =>
+      (await db.query<{ ok: boolean }>(`select log_link_view($1, $2) as ok`, [id, c])).rows[0].ok;
+    const count = async (id: string) =>
+      (await db.query<{ n: number }>(`select count(*)::int as n from link_views where partner_id = $1`, [id])).rows[0].n;
+
+    expect(await log('TSP0001', 'MY')).toBe(true);
+    expect(await log('TSP0001', 'MY')).toBe(false);
+    expect(await log('TSP0001', null)).toBe(true);
+    expect(await log('TSP0001', null)).toBe(false);
+    // An old view no longer blocks a new one.
+    await db.exec(`update link_views set viewed_at = now() - interval '31 minutes' where country = 'MY'`);
+    expect(await log('TSP0001', 'MY')).toBe(true);
+    expect(await count('TSP0001')).toBe(3);
+
+    for (let i = 0; i < 110; i++) await log('TSP0001', `X${i}`);
+    expect(await log('TSP0002', 'MY')).toBe(true);
+    expect(await count('TSP0001')).toBe(100);
+    expect(await count('TSP0002')).toBe(1);
+  });
+
+  it('trims partners that already have more than 100 rows', async () => {
+    const db = new PGlite();
+    const last = '20261120000005_link_view_throttle.sql';
+    const before = readdirSync(resolve(root, 'supabase/migrations')).filter((f) => f.endsWith('.sql') && f < last).sort();
+    await db.exec(before.map((f) => read(`supabase/migrations/${f}`)).join('\n'));
+    await db.exec(`insert into partners (id, name, phone, email, code, filled_by, status)
+      values ('TSP0001', 'P', '+60123456789', 'p@x.my', 'A1', 'Marketing', '活跃')`);
+    await db.exec(`insert into link_views (partner_id, country) select 'TSP0001', 'MY' from generate_series(1, 150)`);
+    await db.exec(read(`supabase/migrations/${last}`));
+    const r = await db.query<{ n: number }>(`select count(*)::int as n from link_views`);
+    expect(r.rows[0].n).toBe(100);
+  });
+});

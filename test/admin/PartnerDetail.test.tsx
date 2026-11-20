@@ -189,3 +189,14 @@ describe('PartnerDetail staff assignment', () => {
     await waitFor(() => expect(patch).toHaveBeenCalledWith('/api/admin/partners/TSP0003', { assignedStaff: 'ben@tohsign.com' }));
   });
 });
+
+describe('PartnerDetail link', () => {
+  it('opens the partner page in a new tab', async () => {
+    get.mockResolvedValue(detail());
+    renderDetail(staff);
+    const a = (await screen.findByRole('link', { name: /\/p\/tok123/ })) as HTMLAnchorElement;
+    expect(a.href).toMatch(/\/p\/tok123$/);
+    expect(a.target).toBe('_blank');
+    expect(a.rel).toBe('noopener noreferrer');
+  });
+});

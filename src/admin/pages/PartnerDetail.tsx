@@ -182,7 +182,9 @@ export function PartnerDetail() {
       {link && (
         <p className="link-box">
           <span className="sr">伙伴链接</span>
-          <code>{link}</code>
+          <a href={link} target="_blank" rel="noopener noreferrer" title="在新分页打开伙伴页面">
+            <code>{link}</code>
+          </a>
           {copied && <span className="ok"> 已复制</span>}
         </p>
       )}
