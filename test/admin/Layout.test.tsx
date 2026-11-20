@@ -32,6 +32,15 @@ describe('Layout', () => {
     expect(screen.queryByRole('link', { name: '设置' })).toBeNull();
   });
 
+  it('shows the company logo with 伙伴后台 under it', async () => {
+    get.mockImplementation(async (p: string) =>
+      p === '/api/admin/me' ? { email: 's@x.my', name: 'Sam Staff', role: 'staff', team: null } : [],
+    );
+    renderApp();
+    expect((await screen.findByRole('img', { name: "Toh's Sign" })).getAttribute('src')).toBeTruthy();
+    expect(screen.getByText('伙伴后台')).toBeTruthy();
+  });
+
   it('shows 设置 for an admin', async () => {
     get.mockImplementation(async (p: string) =>
       p === '/api/admin/me' ? { email: 'a@x.my', name: 'Ada Admin', role: 'admin', team: null } : [],
