@@ -665,3 +665,20 @@ textarea {
 .statement-head h1 {
   margin-bottom: 0.3rem;
 }
+
+/* Signed in, but not on the staff list */
+.denied {
+  max-width: 28rem;
+  margin: 15vh auto 0;
+  padding: 1.5rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  text-align: center;
+}
+
+.denied .btn {
+  display: inline-block;
+  margin-top: 1rem;
+  text-decoration: none;
+}
