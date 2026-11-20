@@ -5,7 +5,7 @@ import type { Partner, PartnerCode } from '../../shared/types';
 import { inactiveMessage, whatsappLink } from '../../shared/whatsapp';
 import { B1_LABEL, B1_NOTE } from '../Amount';
 import { ErrorBanner } from '../ErrorBanner';
-import { api, errorText } from '../api';
+import { api, errorText, peekRead } from '../api';
 import { currentMonth } from '../format';
 
 interface MonthRow {
@@ -24,18 +24,19 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 export function Reports() {
   const [month, setMonth] = useState(currentMonth());
   const [rows, setRows] = useState<MonthRow[] | null>(null);
-  const [inactive, setInactive] = useState<Partner[] | null>(null);
+  const [inactive, setInactive] = useState<Partner[] | null>(() => peekRead<Partner[]>('/api/admin/partners/inactive'));
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let live = true;
-    setRows(null);
+    const url = `/api/admin/reports/monthly?month=${encodeURIComponent(month)}`;
+    setRows(peekRead<MonthRow[]>(url));
     if (!month) {
       setRows([]);
       return;
     }
     api
-      .get<MonthRow[]>(`/api/admin/reports/monthly?month=${encodeURIComponent(month)}`)
+      .get<MonthRow[]>(url)
       .then((r) => live && setRows(r))
       .catch((e) => live && (setError(errorText(e)), setRows([])));
     return () => {

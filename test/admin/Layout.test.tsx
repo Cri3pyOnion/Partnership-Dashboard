@@ -40,6 +40,20 @@ describe('Layout', () => {
     expect(await screen.findByRole('link', { name: '设置' })).toBeTruthy();
   });
 
+  it('loads a list page alongside the sign-in check instead of after it', async () => {
+    get.mockImplementation((p: string) => (p === '/api/admin/me' ? new Promise(() => {}) : Promise.resolve([])));
+    renderApp('/partners');
+    expect(await screen.findByRole('heading', { name: '伙伴' })).toBeTruthy();
+    expect(get).toHaveBeenCalledWith('/api/admin/partners');
+  });
+
+  it('a new-partner form waits for the sign-in check (it defaults the assignee to you)', async () => {
+    get.mockImplementation((p: string) => (p === '/api/admin/me' ? new Promise(() => {}) : Promise.resolve([])));
+    renderApp('/partners/new');
+    expect(await screen.findByText('载入中…')).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: '登记新伙伴' })).toBeNull();
+  });
+
   it('renders the commissions page for the route', async () => {
     get.mockImplementation(async (p: string) =>
       p === '/api/admin/me' ? { email: 'a@x.my', name: 'Ada Admin', role: 'admin', team: null } : [],

@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { rm } from '../../shared/money';
 import type { CommissionStatus, Partner, PartnerCode } from '../../shared/types';
 import { Amount, B1_LABEL, B1_NOTE } from '../Amount';
 import { ErrorBanner } from '../ErrorBanner';
-import { api, errorText } from '../api';
+import { api, errorText, peekRead } from '../api';
 import { currentMonth, klDateTime } from '../format';
 
 interface Row {
@@ -28,7 +28,7 @@ export function Commissions() {
   const [month, setMonth] = useState(currentMonth());
   const [partnerId, setPartnerId] = useState('');
   const [rows, setRows] = useState<Row[] | null>(null);
-  const [partners, setPartners] = useState<Partner[]>([]);
+  const [partners, setPartners] = useState<Partner[]>(() => peekRead<Partner[]>('/api/admin/partners') ?? []);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -39,22 +39,26 @@ export function Commissions() {
       .catch((e) => setError(errorText(e)));
   }, []);
 
-  const load = useCallback(async () => {
+  const url = useMemo(() => {
     const qs = new URLSearchParams();
     if (month) qs.set('month', month);
     if (partnerId) qs.set('partnerId', partnerId);
+    return `/api/admin/commissions${qs.size ? `?${qs}` : ''}`;
+  }, [month, partnerId]);
+
+  const load = useCallback(async () => {
     try {
-      setRows(await api.get<Row[]>(`/api/admin/commissions${qs.size ? `?${qs}` : ''}`));
+      setRows(await api.get<Row[]>(url));
     } catch (e) {
       setError(errorText(e));
       setRows([]);
     }
-  }, [month, partnerId]);
+  }, [url]);
 
   useEffect(() => {
-    setRows(null);
+    setRows(peekRead<Row[]>(url));
     void load();
-  }, [load]);
+  }, [load, url]);
 
   /** Sends the amount on screen: the server refuses (409) if the recomputed amount is different. */
   async function markPaid(r: Row) {
