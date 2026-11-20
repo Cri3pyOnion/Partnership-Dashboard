@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { ApiError, api, authState, useSessionExpired } from './api';
+import logoUrl from './assets/logo.png';
 import { correctedUrl } from './base';
 import { type Me, MeContext } from './me';
 import { CaseDetail } from './pages/CaseDetail';
@@ -98,7 +99,10 @@ function Layout() {
     <MeContext.Provider value={me}>
       <div className="shell">
         <header className="topbar">
-          <span className="brand">Toh&apos;s Sign 伙伴后台</span>
+          <span className="brand">
+            <img className="brand-logo" src={logoUrl} alt="Toh's Sign" width={720} height={91} />
+            <span className="brand-name">伙伴后台</span>
+          </span>
           <nav className="menu" aria-label="主菜单">
             {MENU.filter((m) => !m.adminOnly || me?.role === 'admin').map((m) => (
               <NavLink key={m.to} to={m.to} className={({ isActive }) => (isActive ? 'active' : undefined)}>
