@@ -85,7 +85,7 @@ export function Commissions() {
   return (
     <section>
       <div className="page-head">
-        <h1>佣金</h1>
+        <h1 data-en="Commissions">佣金</h1>
         {partnerId && month && (
           <Link className="btn" to={`/statements/${encodeURIComponent(partnerId)}/${month}`}>
             查看结单

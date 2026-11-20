@@ -22,9 +22,12 @@ const cancelled: Case = {
 };
 const cases = [...demoCases(), cancelled];
 const view = buildPartnerView(demoPartner(), cases, demoCommissions(cases, 'C1'), '+60 12-345 6789');
-const html = renderPartnerPage(view, klStamp(new Date()));
+const stamp = klStamp(new Date());
+const html = renderPartnerPage(view, stamp);
+const htmlEn = renderPartnerPage(view, stamp, 'en');
 
 const out = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'dist', 'preview', 'partner.html');
 mkdirSync(dirname(out), { recursive: true });
 writeFileSync(out, html);
+writeFileSync(out.replace(/\.html$/, '-en.html'), htmlEn);
 console.log(`Wrote ${out} (${(Buffer.byteLength(html) / 1024).toFixed(1)} KB)`);

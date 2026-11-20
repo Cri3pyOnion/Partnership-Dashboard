@@ -55,7 +55,7 @@ export function Cases() {
   return (
     <section>
       <div className="page-head">
-        <h1>案件</h1>
+        <h1 data-en="Cases">案件</h1>
         <Link className="btn primary" to="/cases/new">
           新增案件
         </Link>

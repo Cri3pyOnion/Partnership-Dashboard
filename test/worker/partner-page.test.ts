@@ -59,16 +59,16 @@ describe('renderPartnerPage', () => {
     const comms = [...demoCommissions(cases.slice(0, 3), 'C1'), ...demoCommissions(cases.slice(3), 'B1')];
     const html = renderPartnerPage(buildPartnerView(demoPartner({ code: 'B1' }), cases, comms, ''), '2026-11-19 14:05');
     for (const label of ['待发佣金', '已发佣金', '待付给 Toh&#39;s Sign', '已与 Toh&#39;s Sign 结清']) expect(html).toContain(label);
-    expect(html).toContain('<th class="r">佣金 <span class="en">Commission</span></th>');
-    expect(html).toContain('<th class="r">应付 Toh&#39;s Sign <span class="en">Owed</span></th>');
-    expect(html).not.toContain('合计 <span class="en">Total</span>');
+    expect(html).toContain('<th class="r">佣金</th>');
+    expect(html).toContain('<th class="r">应付 Toh&#39;s Sign</th>');
+    expect(html).not.toContain('<th class="r">合计</th>');
   });
 
   it('a single-code partner sees one tile pair and one total column', () => {
     const html = page('C1');
     expect(html).toContain('待发佣金');
     expect(html).not.toContain('待付给 Toh');
-    expect(html).toContain('合计 <span class="en">Total</span>');
+    expect(html).toContain('<th class="r">合计</th>');
   });
 
   it('shows an en dash for a missing amount', () => {
@@ -86,7 +86,7 @@ describe('renderPartnerPage', () => {
 
 describe('error pages', () => {
   it('invalid link and unavailable pages', () => {
-    for (const [html, text] of [[renderInvalidLink(), '链接无效'], [renderUnavailable(), '暂时无法加载，请稍后再试']]) {
+    for (const [html, text] of [[renderInvalidLink(), '链接无效'], [renderUnavailable(), '暂时无法加载']]) {
       expect(html).toContain(text);
       expect(html).toContain('<meta name="robots" content="noindex">');
       expect(html).toContain('<meta name="referrer" content="no-referrer">');
@@ -100,10 +100,13 @@ describe('case summary', () => {
     const cases = demoCases();
     cases[1] = { ...cases[1], cancelled: true };
     const html = renderPartnerPage(buildPartnerView(demoPartner(), cases, demoCommissions(cases), '60123456789'), '2026-11-20 10:00');
-    expect(html).toContain('Total referred');
-    expect(html).toMatch(/已放弃.*Dropped/s);
+    expect(html).toContain('推荐案件');
+    expect(html).toContain('已放弃');
     expect(html).toContain('80%');
-    expect(html).toContain('Active pipeline rate');
+    expect(html).toContain('有效率');
+    // The Chinese page is Chinese only; English is on the English page.
+    expect(html).not.toContain('class="en"');
+    expect(html).not.toContain('Total referred');
   });
 
   it('shows a dash for the rate when there are no cases', () => {

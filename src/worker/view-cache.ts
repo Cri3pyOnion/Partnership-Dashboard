@@ -1,6 +1,7 @@
 // KV snapshot of each partner's page, keyed by the SHA-256 of the link token.
 // The snapshot outlives Supabase outages: a hit never touches the repo.
 import { previewCommission } from '../shared/commission';
+import type { Lang } from '../shared/i18n';
 import type { Commission, Partner } from '../shared/types';
 import type { Env } from './env';
 import { renderPartnerPage } from './partner-page';
@@ -9,10 +10,20 @@ import { hashToken, isTokenShape } from './token';
 import { buildPartnerView } from './view-model';
 
 interface Snapshot {
+  /** Which page layout built it; anything else is rebuilt (see SNAPSHOT_VERSION). */
+  v: number;
   html: string;
+  /** The same page in English. */
+  htmlEn: string;
   updatedAt: string;
   partnerId: string;
 }
+
+/**
+ * Raise when the page's words or layout change, so stored pages built the old way are rebuilt on
+ * their next visit instead of waiting up to a day. 2: one language per page, with EN | 中文.
+ */
+export const SNAPSHOT_VERSION = 2;
 
 /** Backstop: a snapshot nobody refreshes or drops still dies after a day. */
 export const SNAPSHOT_TTL_SECONDS = 86400;
@@ -34,8 +45,11 @@ export function klStamp(d: Date): string {
 async function readSnapshot(env: Env, k: string): Promise<Snapshot | null> {
   try {
     const v = await env.VIEWS.get<Partial<Snapshot>>(k, 'json');
-    if (v && typeof v.html === 'string' && typeof v.partnerId === 'string') {
-      return { html: v.html, updatedAt: String(v.updatedAt ?? ''), partnerId: v.partnerId };
+    if (
+      v && v.v === SNAPSHOT_VERSION && typeof v.html === 'string' && typeof v.htmlEn === 'string'
+      && typeof v.partnerId === 'string'
+    ) {
+      return { v: v.v, html: v.html, htmlEn: v.htmlEn, updatedAt: String(v.updatedAt ?? ''), partnerId: v.partnerId };
     }
   } catch {
     // fall through to a rebuild
@@ -102,17 +116,26 @@ async function build(env: Env, repo: Repo, p: Partner): Promise<Snapshot> {
     }
   }
   const updatedAt = klStamp(new Date());
-  const html = renderPartnerPage(buildPartnerView(p, cases, comms, env.MARKETING_WHATSAPP ?? ''), updatedAt);
-  return { html, updatedAt, partnerId: p.id };
+  const view = buildPartnerView(p, cases, comms, env.MARKETING_WHATSAPP ?? '');
+  return {
+    v: SNAPSHOT_VERSION,
+    html: renderPartnerPage(view, updatedAt, 'zh'),
+    htmlEn: renderPartnerPage(view, updatedAt, 'en'),
+    updatedAt,
+    partnerId: p.id,
+  };
 }
 
-/** The page for a token: from KV, or built and stored on a miss. null for a bad or unknown token. */
+const pick = (snap: Snapshot, lang: Lang) => (lang === 'en' ? snap.htmlEn : snap.html);
+
+/** The page for a token in `lang`: from KV, or built and stored on a miss. null for a bad or unknown token. */
 export async function getPartnerView(
-  env: Env, repo: Repo, token: string,
+  env: Env, repo: Repo, token: string, lang: Lang = 'zh',
 ): Promise<{ html: string; partnerId: string } | null> {
   if (!isTokenShape(token)) return null;
   const hit = await readSnapshot(env, await key(token));
-  if (hit) return { html: hit.html, partnerId: hit.partnerId };
+  // A snapshot built by an older page layout reads as a miss (readSnapshot), so it is rebuilt here.
+  if (hit) return { html: pick(hit, lang), partnerId: hit.partnerId };
   const p = await repo.getPartnerByToken(token);
   if (!p) return null;
   const snap = await build(env, repo, p);
@@ -122,7 +145,7 @@ export async function getPartnerView(
     // R22: the page was built, so serve it; store() already deleted the key.
     if (!(err instanceof SnapshotPutError)) throw err;
   }
-  return { html: snap.html, partnerId: snap.partnerId };
+  return { html: pick(snap, lang), partnerId: snap.partnerId };
 }
 
 /**

@@ -7,7 +7,7 @@ import { createApp } from '../../src/worker/index';
 import { clearSeenRecently, seenRecently } from '../../src/worker/routes/partner-view';
 import type { Repo } from '../../src/worker/repo';
 import { hashToken, isTokenShape, newViewToken } from '../../src/worker/token';
-import { dropPartnerView, getPartnerView, refreshPartnerView } from '../../src/worker/view-cache';
+import { SNAPSHOT_VERSION, dropPartnerView, getPartnerView, refreshPartnerView } from '../../src/worker/view-cache';
 import { FakeRepo } from '../fake-repo';
 import { caseInput, partnerInput } from '../repo/repo.contract';
 
@@ -140,7 +140,7 @@ describe('GET /p/:token', () => {
     repo.failNext();
     const res = await get(repo, `/p/${token}`);
     expect(res.status).toBe(503);
-    expect(await res.text()).toContain('暂时无法加载，请稍后再试');
+    expect(await res.text()).toContain('暂时无法加载');
     expectSecurityHeaders(res, 'no-store');
   });
 
@@ -276,7 +276,7 @@ describe('best-effort KV and unexpected errors (R22)', () => {
     repo.getPartnerByToken = async () => { throw new TypeError('boom'); };
     const res = await get(repo, `/p/${token}`);
     expect(res.status).toBe(503);
-    expect(await res.text()).toContain('暂时无法加载，请稍后再试');
+    expect(await res.text()).toContain('暂时无法加载');
     expectSecurityHeaders(res, 'no-store');
   });
 });
@@ -380,4 +380,61 @@ describe('view logging cannot be spammed', () => {
     expect(seenRecently('TSP0002', 'MY', t0 + 60_000)).toBe(false);
     expect(seenRecently('TSP0001', 'MY', t0 + 31 * 60_000)).toBe(false);
   });
+});
+
+describe('partner page language', () => {
+  const CJK = /[一-鿿]/;
+  /** Page text without the switch (its 中文 link) and without the partner's own data. */
+  const chromeText = (html: string, data: string[]) => {
+    let t = html.replace(/<nav class="lang"[\s\S]*?<\/nav>/, '').replace(/<style>[\s\S]*?<\/style>/, '');
+    for (const d of data) t = t.split(d).join('');
+    return t;
+  };
+
+  it('?lang=en shows the page in English, remembers it, and has the EN | 中文 switch', async () => {
+    const { repo, token, partner } = await seeded();
+    const res = await get(repo, `/p/${token}?lang=en`);
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain('<html lang="en">');
+    expect(html).toContain('Total referred');
+    expect(html).toContain('Submitted to authority');
+    expect(html).toContain('<b aria-current="true">EN</b>');
+    expect(html).toContain('<a href="?lang=zh" hreflang="zh">中文</a>');
+    expect(CJK.test(chromeText(html, [partner.name, 'Kedai Kopi Ah Seng', '营业执照']))).toBe(false);
+    const cookie = res.headers.get('Set-Cookie') ?? '';
+    expect(cookie).toMatch(/^lang=en;/);
+    expect(cookie).toContain('Path=/p');
+    expect(cookie).toContain('HttpOnly');
+  });
+
+  it('uses the remembered choice, then the browser language, else Chinese', async () => {
+    const { repo, token } = await seeded();
+    expect(await (await get(repo, `/p/${token}`, { headers: { Cookie: 'lang=en' } })).text()).toContain('<html lang="en">');
+    expect(await (await get(repo, `/p/${token}`, { headers: { 'Accept-Language': 'en-GB,en;q=0.9' } })).text()).toContain('<html lang="en">');
+    const zh = await (await get(repo, `/p/${token}`, { headers: { 'Accept-Language': 'en', Cookie: 'lang=zh' } })).text();
+    expect(zh).toContain('<html lang="zh">');
+    expect(zh).toContain('推荐案件');
+    expect(await (await get(repo, `/p/${token}`)).text()).toContain('<html lang="zh">');
+  });
+
+  it('the invalid-link page follows the language too', async () => {
+    const res = await get(new FakeRepo(), `/p/${'a'.repeat(43)}?lang=en`);
+    expect(res.status).toBe(404);
+    expect(await res.text()).toContain('This link is not valid');
+  });
+
+  it('a page stored by an older layout is rebuilt in either language on its next visit', async () => {
+    const { repo, token } = await seeded();
+    await getPartnerView(ENV, repo, token, 'zh');
+    const k = `view:${await hashToken(token)}`;
+    const stored = JSON.parse((await ENV.VIEWS.get(k)) as string);
+    // What the first English release stored: no version, a Chinese page with small English in it.
+    await ENV.VIEWS.put(k, JSON.stringify({ html: '<p>旧页面 Old page</p>', htmlEn: stored.htmlEn, updatedAt: stored.updatedAt, partnerId: stored.partnerId }));
+    const zh = (await getPartnerView(ENV, repo, token, 'zh'))!.html;
+    expect(zh).not.toContain('旧页面');
+    expect(zh).toContain('EN</a>');
+    expect(JSON.parse((await ENV.VIEWS.get(k)) as string).v).toBe(SNAPSHOT_VERSION);
+  });
+
 });

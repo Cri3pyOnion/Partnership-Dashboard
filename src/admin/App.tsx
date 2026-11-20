@@ -3,6 +3,7 @@ import { NavLink, Navigate, Outlet, Route, Routes, useLocation } from 'react-rou
 import { ApiError, api, authState, useSessionExpired } from './api';
 import logoUrl from './assets/logo.png';
 import { correctedUrl } from './base';
+import { currentLang, switchLang } from './i18n';
 import { type Me, MeContext } from './me';
 import { CaseDetail } from './pages/CaseDetail';
 import { CaseForm } from './pages/CaseForm';
@@ -43,15 +44,31 @@ function Profile({ me }: { me: Me | null }) {
   );
 }
 
+/** EN | 中文 at the top right. The choice is kept on this device. */
+export function LangSwitch() {
+  const lang = currentLang();
+  return (
+    <div className="lang-switch" role="group" aria-label="Language / 语言" data-no-translate>
+      <button type="button" className="link" aria-pressed={lang === 'en'} onClick={() => lang !== 'en' && switchLang('en')}>
+        EN
+      </button>
+      <span aria-hidden="true">|</span>
+      <button type="button" className="link" aria-pressed={lang === 'zh'} onClick={() => lang !== 'zh' && switchLang('zh')}>
+        中文
+      </button>
+    </div>
+  );
+}
+
 /** Pages that must wait for the signed-in staff member before drawing. */
 const NEEDS_ME = /\/(partners|cases)\/new\/?$/;
 
 const MENU = [
-  { to: '/partners', label: '伙伴', adminOnly: false },
-  { to: '/cases', label: '案件', adminOnly: false },
-  { to: '/commissions', label: '佣金', adminOnly: false },
-  { to: '/reports', label: '报表', adminOnly: false },
-  { to: '/settings', label: '设置', adminOnly: true },
+  { to: '/partners', label: '伙伴', en: 'Partners', adminOnly: false },
+  { to: '/cases', label: '案件', en: 'Cases', adminOnly: false },
+  { to: '/commissions', label: '佣金', en: 'Commissions', adminOnly: false },
+  { to: '/reports', label: '报表', en: 'Reports', adminOnly: false },
+  { to: '/settings', label: '设置', en: 'Settings', adminOnly: true },
 ];
 
 function Layout() {
@@ -85,6 +102,7 @@ function Layout() {
   if (denied) {
     return (
       <main className="denied" role="alert">
+        <LangSwitch />
         <h1>没有权限</h1>
         <p>你登录的电邮不在员工名单上。</p>
         <p className="muted">请联系管理员在「设置 → 员工」把你加入，或改用已登记的电邮登录。</p>
@@ -105,7 +123,7 @@ function Layout() {
           </span>
           <nav className="menu" aria-label="主菜单">
             {MENU.filter((m) => !m.adminOnly || me?.role === 'admin').map((m) => (
-              <NavLink key={m.to} to={m.to} className={({ isActive }) => (isActive ? 'active' : undefined)}>
+              <NavLink key={m.to} to={m.to} className={({ isActive }) => (isActive ? 'active' : undefined)} data-en={m.en}>
                 {m.label}
               </NavLink>
             ))}
@@ -113,6 +131,7 @@ function Layout() {
           <Profile me={me} />
         </header>
         <main className="content">
+          <LangSwitch />
           {expired && (
             <div className="banner error" role="alert">
               登录已过期，请刷新页面

@@ -275,17 +275,17 @@ export function CaseDetail() {
         <h2>付款</h2>
         <div className="grid2">
           <div className="field">
-            <label htmlFor="price">价格 Price (RM)</label>
+            <label htmlFor="price">价格 (RM)</label>
             <input id="price" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} />
           </div>
           {code === 'C1' && (
             <div className="field">
-              <label htmlFor="markup">加价 Markup (RM)</label>
+              <label htmlFor="markup">加价 (RM)</label>
               <input id="markup" inputMode="decimal" value={markup} onChange={(e) => setMarkup(e.target.value)} />
             </div>
           )}
           <div className="field">
-            <label htmlFor="invoice">发票号码 Invoice no.</label>
+            <label htmlFor="invoice">发票号码</label>
             <input id="invoice" value={invoice} onChange={(e) => setInvoice(e.target.value)} />
           </div>
         </div>

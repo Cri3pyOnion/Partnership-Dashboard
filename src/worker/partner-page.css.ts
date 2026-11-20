@@ -54,6 +54,9 @@ td.r,th.r{text-align:right}
 tr:last-child td{border-bottom:0}
 .wa{display:block;margin:24px 0 0;padding:14px 16px;border-radius:12px;background:var(--wa);color:#fff;text-align:center;font-weight:700;text-decoration:none}
 .wa .en{color:#e6f7ee}
+.lang{display:flex;justify-content:flex-end;gap:6px;font-size:13px;color:var(--muted);margin:0 0 8px}
+.lang a{color:var(--muted);text-decoration:none;padding:2px 4px}
+.lang b{color:var(--brand);padding:2px 4px}
 .foot{margin:24px 0 0;text-align:center;font-size:12px;color:var(--muted)}
 .msg{max-width:420px;margin:20vh auto 0;padding:24px 16px;text-align:center}
 .msg h1{font-size:20px}

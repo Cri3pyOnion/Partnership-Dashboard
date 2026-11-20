@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../../src/admin/App';
@@ -7,7 +7,12 @@ vi.mock('../../src/admin/api', async (orig) => {
   const real = await orig<typeof import('../../src/admin/api')>();
   return { ...real, api: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), put: vi.fn(), raw: vi.fn() } };
 });
+vi.mock('../../src/admin/i18n', async (orig) => {
+  const real = await orig<typeof import('../../src/admin/i18n')>();
+  return { ...real, switchLang: vi.fn() };
+});
 import { api } from '../../src/admin/api';
+import { switchLang } from '../../src/admin/i18n';
 
 const get = api.get as ReturnType<typeof vi.fn>;
 
@@ -39,6 +44,23 @@ describe('Layout', () => {
     renderApp();
     expect((await screen.findByRole('img', { name: "Toh's Sign" })).getAttribute('src')).toBeTruthy();
     expect(screen.getByText('伙伴后台')).toBeTruthy();
+  });
+
+  it('has EN | 中文 at the top, with 中文 chosen, and switches on a click', async () => {
+    get.mockImplementation(async (p: string) =>
+      p === '/api/admin/me' ? { email: 's@x.my', name: 'Sam Staff', role: 'staff', team: null } : [],
+    );
+    renderApp();
+    const group = await screen.findByRole('group', { name: 'Language / 语言' });
+    const en = screen.getByRole('button', { name: 'EN' });
+    const zh = screen.getByRole('button', { name: '中文' });
+    expect(group.contains(en)).toBe(true);
+    expect(zh.getAttribute('aria-pressed')).toBe('true');
+    expect(en.getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(zh);
+    expect(switchLang).not.toHaveBeenCalled();
+    fireEvent.click(en);
+    expect(switchLang).toHaveBeenCalledWith('en');
   });
 
   it('shows 设置 for an admin', async () => {

@@ -13,3 +13,6 @@ vi.mock('../../src/admin/staff-directory', async (orig) => {
   const real = await orig<typeof import('../../src/admin/staff-directory')>();
   return { ...real, useStaffDirectory: () => TEST_STAFF };
 });
+
+// Screens are tested in Chinese, the source language, whatever the test machine's language is.
+localStorage.setItem('lang', 'zh');

@@ -5,6 +5,7 @@ import type { Partner, PartnerCode, Source, Team } from '../../shared/types';
 import { ApiError, api, errorText } from '../api';
 import { useMe } from '../me';
 import { StaffSelect, useStaffDirectory } from '../staff-directory';
+import { currentLang } from '../i18n';
 
 interface Values {
   filledBy: Team;
@@ -91,12 +92,14 @@ function check(v: Values): { errors: Record<string, string>; payload?: Record<st
   };
 }
 
+const EN_MODE = currentLang() === 'en';
+
 function Field({ id, label, en, required, error, hint, children }: { id: string; label: string; en?: string; required?: boolean; error?: string; hint?: string; children: ReactNode }) {
   return (
     <div className={`field${error ? ' has-error' : ''}`}>
       <label htmlFor={id}>
-        {label}
-        {en && <span className="en"> {en}</span>}
+        {/* One language at a time: the English label in English, the Chinese one in Chinese. */}
+        {EN_MODE && en ? en : label}
         {required && <span className="req"> *</span>}
       </label>
       {children}
@@ -238,11 +241,11 @@ export function PartnerForm({ partner, onSaved, onCancel }: { partner?: Partner;
         </select>
       </Field>
 
-      <Field id="f-bank" label="银行名称" en="Bank（仅限内部 – internal only）" error={errors.bankName}>
+      <Field id="f-bank" label="银行名称（仅限内部）" en="Bank name (internal only)" error={errors.bankName}>
         <input id="f-bank" value={v.bankName} aria-invalid={bad('bankName')} onChange={(e) => set('bankName', e.target.value)} />
       </Field>
 
-      <Field id="f-acct" label="银行户口" en="Bank Account（仅限内部 – internal only）" error={errors.bankAccount}>
+      <Field id="f-acct" label="银行户口（仅限内部）" en="Bank account (internal only)" error={errors.bankAccount}>
         <input id="f-acct" inputMode="numeric" value={v.bankAccount} aria-invalid={bad('bankAccount')} onChange={(e) => set('bankAccount', e.target.value)} autoComplete="off" />
       </Field>
 
