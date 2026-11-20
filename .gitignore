@@ -1,0 +1,9 @@
+node_modules
+dist
+.wrangler
+.dev.vars
+.superpowers
+coverage
+
+# Local SQL with real staff emails, never committed
+*.local.sql
