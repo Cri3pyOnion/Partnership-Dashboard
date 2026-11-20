@@ -8,7 +8,7 @@ import { MAX_TEXT, auditQuietly, bad, has, readJson, readObject } from '../admin
 import { requireStaff } from '../access';
 import type { AppEnv } from '../env';
 
-const TEAMS: Team[] = ['Transmission', '市场部', 'IT'];
+const TEAMS: Team[] = ['Transmission', 'Marketing', 'IT'];
 const BAD_FIELDS = '请检查红色栏位';
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);

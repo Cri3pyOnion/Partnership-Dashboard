@@ -138,7 +138,7 @@ export function CaseDetail() {
   };
 
   const cancelCase = () => {
-    if (!window.confirm('确定取消此案件？')) return;
+    if (!window.confirm('确定放弃此案件？')) return;
     return save({ cancelled: true });
   };
 
@@ -211,7 +211,7 @@ export function CaseDetail() {
           </button>
         ) : (
           <button type="button" className="btn danger" disabled={busy} onClick={cancelCase}>
-            取消案件
+            放弃案件
           </button>
         )}
       </div>

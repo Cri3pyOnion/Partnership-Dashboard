@@ -147,3 +147,18 @@ describe('buildPartnerView', () => {
     expect(whatsappLink('', 'x')).toBe('');
   });
 });
+
+describe('case summary tiles', () => {
+  it('counts total, dropped and the pipeline rate (not dropped ÷ total)', () => {
+    const cases = demoCases(); // 4 active, 1 done
+    cases[0] = { ...cases[0], cancelled: true };
+    const v = buildPartnerView(demoPartner(), cases, demoCommissions(cases), WA);
+    expect(v.tiles).toMatchObject({ total: 5, active: 3, done: 1, dropped: 1, pipelineRate: 80 });
+  });
+
+  it('rounds the rate to one decimal and has no rate without cases', () => {
+    const cases = demoCases().slice(0, 3).map((c, i) => ({ ...c, cancelled: i === 0 }));
+    expect(buildPartnerView(demoPartner(), cases, [], WA).tiles.pipelineRate).toBe(66.7);
+    expect(buildPartnerView(demoPartner(), [], [], WA).tiles).toMatchObject({ total: 0, dropped: 0, pipelineRate: null });
+  });
+});

@@ -11,7 +11,7 @@ const token = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) =
 
 const partners: Partner[] = [
   { id: 'TSP0001', name: 'Tan Wei Ming', phone: '+60123384521', email: 'weiming@tan.my', tin: 'IG12345678901', company: null, code: 'A1', referralName: null, filledBy: 'Transmission', source: '上门', bankName: 'CIMB', bankAccount: '7001234567', status: '活跃', viewToken: token(), registeredAt: '2026-08-12', assignedStaff: 'admin@example.my' },
-  { id: 'TSP0002', name: 'Lim Siew Ling', phone: '+60162458830', email: 'siewling@limco.my', tin: 'C2584463202', company: 'Lim & Co. Accounting', code: 'C1', referralName: 'Tan Wei Ming', filledBy: '市场部', source: '线上', bankName: 'Maybank', bankAccount: '5123-4567-8901', status: '待审核', viewToken: null, registeredAt: '2026-11-17', assignedStaff: 'staff@example.my' },
+  { id: 'TSP0002', name: 'Lim Siew Ling', phone: '+60162458830', email: 'siewling@limco.my', tin: 'C2584463202', company: 'Lim & Co. Accounting', code: 'C1', referralName: 'Tan Wei Ming', filledBy: 'Marketing', source: '线上', bankName: 'Maybank', bankAccount: '5123-4567-8901', status: '待审核', viewToken: null, registeredAt: '2026-11-17', assignedStaff: 'staff@example.my' },
   { id: 'TSP0003', name: 'Ahmad Faizal', phone: '+60191112222', email: 'faizal@example.my', tin: null, company: 'Faizal Trading', code: 'B1', referralName: null, filledBy: 'Transmission', source: null, bankName: null, bankAccount: null, status: '不活跃', viewToken: token(), registeredAt: '2026-05-02', assignedStaff: null },
 ];
 

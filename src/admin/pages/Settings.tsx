@@ -3,7 +3,7 @@ import type { CommissionRules, Settings as SettingsData, Staff, Team } from '../
 import { ErrorBanner } from '../ErrorBanner';
 import { api, errorText } from '../api';
 
-const TEAMS: Team[] = ['Transmission', '市场部', 'IT'];
+const TEAMS: Team[] = ['Transmission', 'Marketing', 'IT'];
 
 interface Form {
   threshold: string;

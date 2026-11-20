@@ -10,7 +10,7 @@ const newCase = (partnerId: string, over: Record<string, unknown> = {}) => ({
   partnerId, clientName: '李先生', licenceType: '营业执照', price: 1800, ...over,
 });
 const partnerBody = (over: Record<string, unknown> = {}) => ({
-  name: 'Ali', phone: '012-3456789', email: 'ali@x.my', code: 'A1', filledBy: '市场部', ...over,
+  name: 'Ali', phone: '012-3456789', email: 'ali@x.my', code: 'A1', filledBy: 'Marketing', ...over,
 });
 
 async function setup() {

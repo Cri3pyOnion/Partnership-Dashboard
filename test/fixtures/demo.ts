@@ -13,7 +13,7 @@ export const demoPartner = (over: Partial<Partner> = {}): Partner => ({
   company: 'Lim & Co. Accounting',
   code: 'C1',
   referralName: null,
-  filledBy: '市场部',
+  filledBy: 'Marketing',
   source: '线上',
   bankName: 'Maybank',
   bankAccount: DEMO_BANK_ACCOUNT,

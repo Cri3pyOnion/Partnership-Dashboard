@@ -167,7 +167,7 @@ export function PartnerForm({ partner, onSaved, onCancel }: { partner?: Partner;
     }
   }
 
-  const teams: Team[] = v.filledBy === 'IT' ? ['Transmission', '市场部', 'IT'] : ['Transmission', '市场部'];
+  const teams: Team[] = v.filledBy === 'IT' ? ['Transmission', 'Marketing', 'IT'] : ['Transmission', 'Marketing'];
 
   return (
     <form className="form" onSubmit={submit} noValidate>

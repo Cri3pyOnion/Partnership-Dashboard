@@ -13,7 +13,7 @@ import { AUD, TEAM, makeAccess } from './access-helper';
 export const ENV = { ...(testEnv as unknown as Env), ACCESS_TEAM_DOMAIN: TEAM, ACCESS_AUD: AUD } as Env;
 export const DB_DOWN = { error: '数据库暂时无法连接，请稍后再试' };
 export const admin: Staff = { email: 'boss@tohsign.com', name: 'Boss', role: 'admin', team: 'IT', active: true };
-export const clerk: Staff = { email: 'clerk@tohsign.com', name: 'Clerk', role: 'staff', team: '市场部', active: true };
+export const clerk: Staff = { email: 'clerk@tohsign.com', name: 'Clerk', role: 'staff', team: 'Marketing', active: true };
 
 /** What a browser adds to a same-origin write (the CSRF check needs one of the two). */
 export const SAME_ORIGIN: Record<string, string> = { Origin: 'https://partners.tohssignlicense.com', 'Sec-Fetch-Site': 'same-origin' };

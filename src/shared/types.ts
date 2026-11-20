@@ -2,7 +2,7 @@ import type { StepIndex } from './status';
 
 export type PartnerCode = 'A1' | 'B1' | 'C1';
 export type PartnerStatus = '待审核' | '活跃' | '不活跃';
-export type Team = 'Transmission' | '市场部' | 'IT';
+export type Team = 'Transmission' | 'Marketing' | 'IT';
 export type Source = '上门' | '线上';
 export type CommissionStatus = '待处理' | '可发放' | '已支付' | '待付发票' | '已结清';
 

@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
@@ -7,11 +7,12 @@ import { DEFAULT_RULES, calcCommission } from '../../src/shared/commission';
 
 const root = fileURLToPath(new URL('../..', import.meta.url));
 const read = (p: string) => readFileSync(resolve(root, p), 'utf8');
-const init = read('supabase/migrations/20261119000001_init.sql');
-const freezePaid = read('supabase/migrations/20261120000001_freeze_paid.sql');
-const bucketLimits = read('supabase/migrations/20261120000002_bucket_limits.sql');
-/** Every migration, in order. */
-const migration = [init, freezePaid, bucketLimits].join('\n');
+/** Every migration in supabase/migrations, in file-name order. */
+const migration = readdirSync(resolve(root, 'supabase/migrations'))
+  .filter((f) => f.endsWith('.sql'))
+  .sort()
+  .map((f) => read(`supabase/migrations/${f}`))
+  .join('\n');
 const seed = read('supabase/seed.sql');
 const smoke = read('supabase/tests/smoke.sql');
 
@@ -202,5 +203,19 @@ describe('guarded revokes with Supabase-style roles', () => {
       expect(await b(`select has_function_privilege('${role}','public.next_partner_id()','EXECUTE')`)).toBe(false);
     }
     expect(await b(`select has_function_privilege('service_role','public.next_partner_id()','EXECUTE')`)).toBe(true);
+  });
+});
+
+describe('20261120000003/4: staff assignment and the Marketing team', () => {
+  it('adds assigned_staff and handled_by, and only accepts Marketing (not 市场部)', async () => {
+    const db = new PGlite();
+    await db.exec(migration);
+    await db.exec(`insert into staff (email, name, role, team) values ('a@x.my', 'A', 'staff', 'Marketing')`);
+    await db.exec(`insert into partners (id, name, phone, email, code, filled_by, status, assigned_staff)
+      values ('TSP0001', 'P', '+60123456789', 'p@x.my', 'A1', 'Marketing', '活跃', 'a@x.my')`);
+    await expect(db.exec(`insert into staff (email, name, role, team) values ('b@x.my', 'B', 'staff', '市场部')`)).rejects.toThrow();
+    await expect(db.exec(`update partners set assigned_staff = 'nobody@x.my'`)).rejects.toThrow();
+    const r = await db.query<{ n: number }>(`select count(*)::int as n from information_schema.columns where column_name = 'handled_by'`);
+    expect(r.rows[0].n).toBe(1);
   });
 });

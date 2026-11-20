@@ -80,7 +80,7 @@ describe('CaseDetail steps', () => {
     await screen.findByRole('heading', { name: /TS-2611-014/ });
     const group = screen.getByRole('group', { name: '进度' });
     const buttons = within(group).getAllByRole('button');
-    expect(buttons.map((b) => b.textContent)).toEqual(['已收件', '待补文件', '已递交政府部门', '实地检查', '已批准', '已完成']);
+    expect(buttons.map((b) => b.textContent)).toEqual(['洽谈中', '收集文件', '已递交政府部门', '实地检查', '已批准', '已完成']);
     expect(buttons.map((b) => b.getAttribute('aria-pressed'))).toEqual(['false', 'false', 'true', 'false', 'false', 'false']);
   });
 
@@ -146,9 +146,9 @@ describe('CaseDetail fields', () => {
     patch.mockResolvedValue({ ...base, cancelled: true, commission });
     const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true);
     renderDetail();
-    const btn = await screen.findByRole('button', { name: '取消案件' });
+    const btn = await screen.findByRole('button', { name: '放弃案件' });
     await user.click(btn);
-    expect(confirm).toHaveBeenCalledWith('确定取消此案件？');
+    expect(confirm).toHaveBeenCalledWith('确定放弃此案件？');
     expect(patch).not.toHaveBeenCalled();
     await user.click(btn);
     await waitFor(() => expect(patch).toHaveBeenCalledWith('/api/admin/cases/TS-2611-014', { cancelled: true }));

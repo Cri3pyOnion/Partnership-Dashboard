@@ -77,10 +77,10 @@ describe('renderPartnerPage', () => {
     expect(html).not.toContain('—');
   });
 
-  it('shows 已取消 for a cancelled case', () => {
+  it('shows 已放弃 for a cancelled case', () => {
     const cases = [{ ...demoCases()[0], cancelled: true }];
     const html = renderPartnerPage(buildPartnerView(demoPartner(), cases, [], ''), '2026-11-19 14:05');
-    expect(html).toContain('已取消');
+    expect(html).toContain('已放弃');
   });
 });
 
@@ -92,5 +92,22 @@ describe('error pages', () => {
       expect(html).toContain('<meta name="referrer" content="no-referrer">');
       expect(html).toContain('<html lang="zh">');
     }
+  });
+});
+
+describe('case summary', () => {
+  it('shows total referred, dropped and the active pipeline rate', () => {
+    const cases = demoCases();
+    cases[1] = { ...cases[1], cancelled: true };
+    const html = renderPartnerPage(buildPartnerView(demoPartner(), cases, demoCommissions(cases), '60123456789'), '2026-11-20 10:00');
+    expect(html).toContain('Total referred');
+    expect(html).toMatch(/已放弃.*Dropped/s);
+    expect(html).toContain('80%');
+    expect(html).toContain('Active pipeline rate');
+  });
+
+  it('shows a dash for the rate when there are no cases', () => {
+    const html = renderPartnerPage(buildPartnerView(demoPartner(), [], [], '60123456789'), '2026-11-20 10:00');
+    expect(html).toMatch(/有效率[\s\S]*?—/);
   });
 });

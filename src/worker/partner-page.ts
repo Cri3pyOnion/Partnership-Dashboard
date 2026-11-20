@@ -28,8 +28,8 @@ ${body}
 </html>`;
 }
 
-function tile(label: string, en: string, value: string): string {
-  return `<div class="tile"><span class="l">${esc(label)} <span class="en">${esc(en)}</span></span><span class="n">${esc(value)}</span></div>`;
+function tile(label: string, en: string, value: string, cls = ''): string {
+  return `<div class="tile${cls ? ` ${cls}` : ''}"><span class="l">${esc(label)} <span class="en">${esc(en)}</span></span><span class="n">${esc(value)}</span></div>`;
 }
 
 function timeline(c: PartnerViewCase): string {
@@ -80,7 +80,7 @@ export function renderPartnerPage(v: PartnerView, updatedAt: string): string {
     }</tbody></table>`
     : `<p class="empty">暂无记录 <span class="en">Nothing yet</span></p>`;
   const wa = v.whatsapp
-    ? `<a class="wa" href="${esc(v.whatsapp)}" target="_blank" rel="noopener noreferrer">WhatsApp 联系市场部 <span class="en">Contact Marketing</span></a>`
+    ? `<a class="wa" href="${esc(v.whatsapp)}" target="_blank" rel="noopener noreferrer">WhatsApp 联系 Marketing <span class="en">Contact Marketing</span></a>`
     : '';
 
   const body = `<main>
@@ -92,9 +92,14 @@ ${p.company ? `<p class="co">${esc(p.company)}</p>` : ''}
 <p class="upd">更新于 ${esc(updatedAt)}</p>
 ${b1}
 </header>
-<section class="tiles" aria-label="概览 Summary">
-${tile('进行中案件', 'Active', String(t.active))}
+<section class="tiles five" aria-label="案件概览 Case summary">
+${tile('推荐案件', 'Total referred', String(t.total))}
+${tile('进行中', 'Active', String(t.active))}
 ${tile('已完成', 'Done', String(t.done))}
+${tile('已放弃', 'Dropped', String(t.dropped))}
+${tile('有效率', 'Active pipeline rate', t.pipelineRate === null ? '—' : `${t.pipelineRate}%`, 'rate')}
+</section>
+<section class="tiles" aria-label="佣金概览 Money summary">
 ${t.money.map((m) => `${tile(m.pendingLabel, 'Pending', rm(m.pending))}\n${tile(m.paidLabel, 'Paid', rm(m.paid))}`).join('\n')}
 </section>
 <h2>案件 <span class="en">Cases</span></h2>

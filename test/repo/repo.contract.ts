@@ -245,7 +245,7 @@ export function runRepoContract(make: () => Promise<Repo>): void {
     it('saves, updates, gets and lists', async () => {
       const repo = await make();
       expect(await repo.getStaff('nobody@example.com')).toBeNull();
-      const s: Staff = { email: `${uniq('s')}@example.com`, name: 'Siti', role: 'staff', team: '市场部', active: true };
+      const s: Staff = { email: `${uniq('s')}@example.com`, name: 'Siti', role: 'staff', team: 'Marketing', active: true };
       await repo.saveStaff(s, 'admin@x.com');
       expect(await repo.getStaff(s.email)).toEqual(s);
       const changed: Staff = { ...s, role: 'admin', team: null, active: false };

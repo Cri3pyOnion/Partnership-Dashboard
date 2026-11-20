@@ -69,7 +69,7 @@ describe('Statement', () => {
     expect(screen.getByTestId('total-commission-paid').textContent).toBe('RM 0');
   });
 
-  it('has a 状态 column, shows 已取消 for cancelled lines, and totals paid apart from pending', async () => {
+  it('has a 状态 column, shows 已放弃 for cancelled lines, and totals paid apart from pending', async () => {
     get.mockResolvedValue(
       statement({
         lines: [
@@ -86,7 +86,7 @@ describe('Statement', () => {
     expect(within(screen.getByText('TS-2611-014').closest('tr') as HTMLElement).getByText('已支付')).toBeTruthy();
     expect(within(screen.getByText('TS-2611-016').closest('tr') as HTMLElement).getByText('可发放')).toBeTruthy();
     const cx = screen.getByText('TS-2611-017').closest('tr') as HTMLElement;
-    expect(within(cx).getByText(/已取消/)).toBeTruthy();
+    expect(within(cx).getByText(/已放弃/)).toBeTruthy();
     expect(screen.getByTestId('total-commission-paid').textContent).toBe('RM 300');
     expect(screen.getByTestId('total-commission-pending').textContent).toBe('RM 150');
     expect(screen.getByText(/已支付 Paid/)).toBeTruthy();

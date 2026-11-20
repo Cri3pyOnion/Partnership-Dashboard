@@ -14,7 +14,7 @@ import { newViewToken } from '../token';
 import { dropPartnerView } from '../view-cache';
 
 const CODES: PartnerCode[] = ['A1', 'B1', 'C1'];
-const TEAMS: Team[] = ['Transmission', '市场部', 'IT'];
+const TEAMS: Team[] = ['Transmission', 'Marketing', 'IT'];
 const SOURCES: Source[] = ['上门', '线上'];
 const STATUSES: PartnerStatus[] = ['待审核', '活跃', '不活跃'];
 const FORBIDDEN = ['id', 'viewToken', 'registeredAt'];
