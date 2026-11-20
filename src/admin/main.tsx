@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { App } from './App';
 import { currentBase } from './base';
+import { currentLang, translateToEnglish } from './i18n';
 import './styles.css';
 
 async function start() {
@@ -12,7 +13,9 @@ async function start() {
     const { installMockApi } = await import('./dev/mock-api');
     installMockApi();
   }
-  createRoot(document.getElementById('root')!).render(
+  const root = document.getElementById('root')!;
+  if (currentLang() === 'en') translateToEnglish(root);
+  createRoot(root).render(
     <StrictMode>
       <BrowserRouter basename={currentBase(location.pathname)}>
         <App />

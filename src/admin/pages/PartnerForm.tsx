@@ -5,6 +5,7 @@ import type { Partner, PartnerCode, Source, Team } from '../../shared/types';
 import { ApiError, api, errorText } from '../api';
 import { useMe } from '../me';
 import { StaffSelect, useStaffDirectory } from '../staff-directory';
+import { currentLang } from '../i18n';
 
 interface Values {
   filledBy: Team;
@@ -91,12 +92,15 @@ function check(v: Values): { errors: Record<string, string>; payload?: Record<st
   };
 }
 
+const EN_MODE = currentLang() === 'en';
+
 function Field({ id, label, en, required, error, hint, children }: { id: string; label: string; en?: string; required?: boolean; error?: string; hint?: string; children: ReactNode }) {
   return (
     <div className={`field${error ? ' has-error' : ''}`}>
       <label htmlFor={id}>
-        {label}
-        {en && <span className="en"> {en}</span>}
+        {/* In English the English hint is the label; in Chinese it follows the label in small type. */}
+        {EN_MODE && en ? en : label}
+        {!EN_MODE && en && <span className="en"> {en}</span>}
         {required && <span className="req"> *</span>}
       </label>
       {children}

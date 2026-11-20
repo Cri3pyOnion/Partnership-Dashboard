@@ -701,3 +701,26 @@ textarea {
   margin-top: 1rem;
   text-decoration: none;
 }
+
+/* EN | 中文, top right of the page */
+.lang-switch {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin: -0.4rem 0 0.4rem;
+}
+
+.lang-switch .link {
+  color: var(--muted);
+  text-decoration: none;
+  padding: 0.1rem 0.2rem;
+  margin: 0;
+}
+
+.lang-switch .link[aria-pressed='true'] {
+  color: var(--accent);
+  font-weight: 700;
+}

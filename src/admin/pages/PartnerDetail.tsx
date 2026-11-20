@@ -239,7 +239,7 @@ export function PartnerDetail() {
         <span className="muted">现有案件不变，新案件交给新员工</span>
       </div>
 
-      <h2>案件</h2>
+      <h2 data-en="Cases">案件</h2>
       {cases.length === 0 ? (
         <p className="muted">还没有案件</p>
       ) : (

@@ -51,7 +51,7 @@ export function Partners() {
   return (
     <section>
       <div className="page-head">
-        <h1>伙伴</h1>
+        <h1 data-en="Partners">伙伴</h1>
         <Link className="btn primary" to="/partners/new">
           登记新伙伴
         </Link>
