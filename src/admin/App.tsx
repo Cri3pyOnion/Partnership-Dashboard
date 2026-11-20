@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Navigate, Outlet, Route, Routes } from 'react-router-dom';
+import { NavLink, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { ApiError, api, authState, useSessionExpired } from './api';
 import { correctedUrl } from './base';
 import { type Me, MeContext } from './me';
@@ -42,6 +42,9 @@ function Profile({ me }: { me: Me | null }) {
   );
 }
 
+/** Pages that must wait for the signed-in staff member before drawing. */
+const NEEDS_ME = /\/(partners|cases)\/new\/?$/;
+
 const MENU = [
   { to: '/partners', label: '伙伴', adminOnly: false },
   { to: '/cases', label: '案件', adminOnly: false },
@@ -51,6 +54,7 @@ const MENU = [
 ];
 
 function Layout() {
+  const { pathname } = useLocation();
   const [me, setMe] = useState<Me | null>(null);
   const [failed, setFailed] = useState(false);
   // Signed in with Cloudflare, but the email is not an active staff member (the portal's list decides).
@@ -114,7 +118,9 @@ function Layout() {
             </div>
           )}
           {failed && !expired && <div className="banner error">无法读取登录信息，请刷新页面</div>}
-          {me ? <Outlet /> : !failed && <p className="muted">载入中…</p>}
+          {/* Pages load their own data alongside /me; only the two "new" forms need to know who is
+              signing in before they draw (they default the assignee to you). */}
+          {me || (!failed && !NEEDS_ME.test(pathname)) ? <Outlet /> : !failed && <p className="muted">载入中…</p>}
         </main>
       </div>
     </MeContext.Provider>

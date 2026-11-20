@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import type { Partner, PartnerStatus } from '../../shared/types';
-import { api, errorText } from '../api';
+import { api, errorText, peekRead } from '../api';
 import { ErrorBanner } from '../ErrorBanner';
 import { klDate } from '../format';
 import { staffName, useStaffDirectory } from '../staff-directory';
@@ -36,9 +36,11 @@ export function Partners() {
     if (status) qs.set('status', status);
     if (q) qs.set('q', q);
     if (owner) qs.set('assignedStaff', owner);
-    setRows(null);
+    const url = `/api/admin/partners${qs.size ? `?${qs}` : ''}`;
+    // Last time's rows for this exact search show at once; fresh ones replace them when they arrive.
+    setRows(peekRead<Partner[]>(url));
     api
-      .get<Partner[]>(`/api/admin/partners${qs.size ? `?${qs}` : ''}`)
+      .get<Partner[]>(url)
       .then((r) => live && setRows(r))
       .catch((e) => live && (setError(errorText(e)), setRows([])));
     return () => {

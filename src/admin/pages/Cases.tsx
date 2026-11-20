@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { CASE_STEPS, STEP_CANCELLED } from '../../shared/status';
 import { rm } from '../../shared/money';
 import type { Case, Partner } from '../../shared/types';
-import { api, errorText } from '../api';
+import { api, errorText, peekRead } from '../api';
 import { ErrorBanner } from '../ErrorBanner';
 import { klDate } from '../format';
 import { staffName, useStaffDirectory } from '../staff-directory';
@@ -16,7 +16,7 @@ export function Cases() {
   const handler = params.get('handledBy') ?? '';
   const staff = useStaffDirectory();
   const [rows, setRows] = useState<Case[] | null>(null);
-  const [partners, setPartners] = useState<Partner[]>([]);
+  const [partners, setPartners] = useState<Partner[]>(() => peekRead<Partner[]>('/api/admin/partners') ?? []);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -33,9 +33,10 @@ export function Cases() {
     if (step) qs.set('step', step);
     if (month) qs.set('month', month);
     if (handler) qs.set('handledBy', handler);
-    setRows(null);
+    const url = `/api/admin/cases${qs.size ? `?${qs}` : ''}`;
+    setRows(peekRead<Case[]>(url));
     api
-      .get<Case[]>(`/api/admin/cases${qs.size ? `?${qs}` : ''}`)
+      .get<Case[]>(url)
       .then((r) => live && setRows(r))
       .catch((e) => live && (setError(errorText(e)), setRows([])));
     return () => {
