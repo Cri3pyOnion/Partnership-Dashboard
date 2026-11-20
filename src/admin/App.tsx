@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Navigate, Outlet, Route, Routes } from 'react-router-dom';
-import { api, authState, useSessionExpired } from './api';
+import { ApiError, api, authState, useSessionExpired } from './api';
 import { type Me, MeContext } from './me';
 import { CaseDetail } from './pages/CaseDetail';
 import { CaseForm } from './pages/CaseForm';
@@ -52,6 +52,8 @@ const MENU = [
 function Layout() {
   const [me, setMe] = useState<Me | null>(null);
   const [failed, setFailed] = useState(false);
+  // Signed in with Cloudflare, but the email is not an active staff member (the portal's list decides).
+  const [denied, setDenied] = useState(false);
   const expired = useSessionExpired();
 
   useEffect(() => {
@@ -59,11 +61,28 @@ function Layout() {
     api
       .get<Me>('/api/admin/me')
       .then((m) => live && setMe(m))
-      .catch(() => live && setFailed(true));
+      .catch((e) => {
+        if (!live) return;
+        if (e instanceof ApiError && e.status === 403) setDenied(true);
+        else setFailed(true);
+      });
     return () => {
       live = false;
     };
   }, []);
+
+  if (denied) {
+    return (
+      <main className="denied" role="alert">
+        <h1>没有权限</h1>
+        <p>你登录的电邮不在员工名单上。</p>
+        <p className="muted">请联系管理员在「设置 → 员工」把你加入，或改用已登记的电邮登录。</p>
+        <a className="btn primary" href={SIGN_OUT_URL}>
+          退出并换个电邮
+        </a>
+      </main>
+    );
+  }
 
   return (
     <MeContext.Provider value={me}>

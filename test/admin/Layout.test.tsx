@@ -75,3 +75,19 @@ describe('Profile', () => {
     confirm.mockRestore();
   });
 });
+
+describe('Not on the staff list', () => {
+  it('a 403 from /me shows 没有权限 with a way to sign out and switch email', async () => {
+    const { ApiError } = await vi.importActual<typeof import('../../src/admin/api')>('../../src/admin/api');
+    get.mockImplementation(async (p: string) => {
+      if (p === '/api/admin/me') throw new ApiError(403, '没有权限');
+      return [];
+    });
+    renderApp();
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('不在员工名单');
+    const out = screen.getByRole('link', { name: '退出并换个电邮' }) as HTMLAnchorElement;
+    expect(out.getAttribute('href')).toBe('/cdn-cgi/access/logout');
+    expect(screen.queryByRole('link', { name: '伙伴' })).toBeNull();
+  });
+});
