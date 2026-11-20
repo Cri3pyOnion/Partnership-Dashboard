@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import { ApiError, api, authState, useSessionExpired } from './api';
+import { correctedUrl } from './base';
 import { type Me, MeContext } from './me';
 import { CaseDetail } from './pages/CaseDetail';
 import { CaseForm } from './pages/CaseForm';
@@ -60,7 +61,12 @@ function Layout() {
     let live = true;
     api
       .get<Me>('/api/admin/me')
-      .then((m) => live && setMe(m))
+      .then((m) => {
+        if (!live) return;
+        const to = correctedUrl(m.role, window.location);
+        if (to) window.location.replace(to);
+        else setMe(m);
+      })
       .catch((e) => {
         if (!live) return;
         if (e instanceof ApiError && e.status === 403) setDenied(true);
