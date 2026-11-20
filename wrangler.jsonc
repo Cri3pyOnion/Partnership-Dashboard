@@ -1,5 +1,5 @@
 {
-  "name": "partner-portal",
+  "name": "portal",
   "main": "src/worker/index.ts",
   "compatibility_date": "2026-11-01",
   // Phase 1: served on <name>.workers.dev with Cloudflare Access turned on for that address
@@ -11,15 +11,15 @@
     "directory": "dist/public",
     "binding": "ASSETS",
     "not_found_handling": "none",
-    "run_worker_first": ["/", "/p", "/p/*", "/api/*", "/admin", "/admin/*"]
+    "run_worker_first": ["/", "/p", "/p/*", "/api/*", "/admin", "/admin/*", "/dashboard", "/dashboard/*"]
   },
   "kv_namespaces": [{ "binding": "VIEWS", "id": "733072986fd347548ab584d14172a99c" }],
   "vars": {
-    "ACCESS_TEAM_DOMAIN": "polished-dust-a6eb.cloudflareaccess.com",
+    "ACCESS_TEAM_DOMAIN": "tohssign.cloudflareaccess.com",
     "ACCESS_AUD": "d638aed16c4cd132cb0c52d5b47e42dc603767afb00c5bc1b19da006a3fa8f73",
     "SUPABASE_URL": "https://szrrnvmfailhaomgklwe.supabase.co",
     "MARKETING_WHATSAPP": "",
-    "PUBLIC_BASE_URL": "https://partner-portal.tohssign.workers.dev"
+    "PUBLIC_BASE_URL": "https://portal.tohssign.workers.dev"
   }
   // Secret (set with `wrangler secret put`, never committed): SUPABASE_SERVICE_ROLE_KEY
 }

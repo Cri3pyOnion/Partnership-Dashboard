@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { App } from './App';
+import { currentBase } from './base';
 import './styles.css';
 
 async function start() {
@@ -13,7 +14,7 @@ async function start() {
   }
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
-      <BrowserRouter basename="/admin">
+      <BrowserRouter basename={currentBase(location.pathname)}>
         <App />
       </BrowserRouter>
     </StrictMode>,
