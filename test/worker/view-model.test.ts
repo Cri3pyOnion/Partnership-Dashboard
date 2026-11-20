@@ -10,11 +10,12 @@ const money = (v: PartnerView, kind: MoneyKind) => v.tiles.money.find((m) => m.k
 const total = (m: PartnerView['months'][number]) => m.commission + m.b1;
 
 describe('buildPartnerView', () => {
-  it('never leaks bank, phone, notes or document fields', () => {
-    const cases = demoCases();
-    const json = JSON.stringify(buildPartnerView(demoPartner(), cases, demoCommissions(cases), WA));
+  it('never leaks bank, phone, notes, staff or document fields', () => {
+    const cases = demoCases().map((c) => ({ ...c, handledBy: 'handler@tohsign.com' }));
+    const json = JSON.stringify(buildPartnerView(demoPartner({ assignedStaff: 'owner@tohsign.com' }), cases, demoCommissions(cases), WA));
     for (const bad of ['bankAccount', DEMO_BANK_ACCOUNT, 'bankName', 'Maybank', 'clientPhone', '+60198887777',
-      'notesInternal', 'internal: client', 'storage_path', 'storagePath', 'siewling@limco.my', 'C2584463202', 'price']) {
+      'notesInternal', 'internal: client', 'storage_path', 'storagePath', 'siewling@limco.my', 'C2584463202', 'price',
+      'assignedStaff', 'owner@tohsign.com', 'handledBy', 'handler@tohsign.com']) {
       expect(json).not.toContain(bad);
     }
   });

@@ -8,6 +8,7 @@ import { ErrorBanner } from '../ErrorBanner';
 import { api, errorText } from '../api';
 import { klDate, klDateTime } from '../format';
 import { compressImage } from '../lib/compress-image';
+import { StaffSelect, staffName, useStaffDirectory } from '../staff-directory';
 
 interface Detail extends Case {
   commission: Commission | null;
@@ -53,6 +54,8 @@ export function CaseDetail() {
   const [markup, setMarkup] = useState('');
   const [invoice, setInvoice] = useState('');
   const [kind, setKind] = useState(KINDS[0]);
+  const [handler, setHandler] = useState('');
+  const staff = useStaffDirectory();
   const fileRef = useRef<HTMLInputElement>(null);
 
   const loadDocs = useCallback(async () => {
@@ -70,6 +73,7 @@ export function CaseDetail() {
         setPrice(numText(d.price));
         setMarkup(numText(d.markup));
         setInvoice(d.invoiceNo ?? '');
+        setHandler(d.handledBy ?? '');
         const [p] = await Promise.all([api.get<{ partner: Partner }>(`/api/admin/partners/${encodeURIComponent(d.partnerId)}`), loadDocs()]);
         setPartner(p.partner);
       } catch (e) {
@@ -215,6 +219,22 @@ export function CaseDetail() {
       <dl className="details">
         <Row label="伙伴">
           <Link to={`/partners/${data.partnerId}`}>{partner?.name ?? data.partnerId}</Link>
+        </Row>
+        <Row label="处理员工">
+          <span className="inline-form">
+            <StaffSelect id="handler" label="处理员工" value={handler} list={staff} onChange={setHandler} />
+            <button
+              type="button"
+              className="btn"
+              disabled={busy || handler === (data.handledBy ?? '')}
+              onClick={() => save({ handledBy: handler || null })}
+            >
+              更改
+            </button>
+            {partner && partner.assignedStaff !== data.handledBy && (
+              <span className="muted"> 伙伴负责员工：{staffName(staff, partner.assignedStaff)}</span>
+            )}
+          </span>
         </Row>
         <Row label="客户电话">{data.clientPhone ?? '—'}</Row>
         <Row label="执照类型">{data.licenceType}</Row>

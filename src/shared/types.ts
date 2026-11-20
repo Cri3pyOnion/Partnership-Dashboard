@@ -22,6 +22,8 @@ export interface Partner {
   status: PartnerStatus;
   viewToken: string | null;
   registeredAt: string;
+  /** Email of the responsible staff member, or null when unassigned. */
+  assignedStaff: string | null;
 }
 
 export interface Case {
@@ -41,6 +43,8 @@ export interface Case {
   clientPaid: boolean;
   clientPaidAt: string | null;
   notesInternal: string | null;
+  /** Email of the staff member handling this case, or null when unassigned. */
+  handledBy: string | null;
 }
 
 export interface CommissionRules {
@@ -74,10 +78,13 @@ export interface Staff {
   active: boolean;
 }
 
-export type NewPartner = Omit<Partner, 'id' | 'status' | 'viewToken' | 'registeredAt'>;
+export type NewPartner = Omit<Partner, 'id' | 'status' | 'viewToken' | 'registeredAt' | 'assignedStaff'> & {
+  assignedStaff?: string | null;
+};
 
-export type NewCase = Omit<Case, 'id' | 'step' | 'cancelled' | 'clientPaid' | 'clientPaidAt' | 'submittedAt'> & {
+export type NewCase = Omit<Case, 'id' | 'step' | 'cancelled' | 'clientPaid' | 'clientPaidAt' | 'submittedAt' | 'handledBy'> & {
   submittedAt?: string;
+  handledBy?: string | null;
 };
 
 export interface CaseDocument {

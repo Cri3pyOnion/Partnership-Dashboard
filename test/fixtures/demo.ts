@@ -20,6 +20,7 @@ export const demoPartner = (over: Partial<Partner> = {}): Partner => ({
   status: '活跃',
   viewToken: null,
   registeredAt: '2026-08-30',
+  assignedStaff: null,
   ...over,
 });
 
@@ -29,6 +30,7 @@ const base = {
   cancelled: false,
   invoiceNo: null,
   notesInternal: 'internal: client was rude on the phone',
+  handledBy: null,
 };
 
 export const demoCases = (): Case[] => [

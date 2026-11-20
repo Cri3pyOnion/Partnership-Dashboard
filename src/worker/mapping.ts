@@ -28,23 +28,25 @@ const PARTNER_COLS: Record<string, string> = {
   name: 'name', phone: 'phone', email: 'email', tin: 'tin', company: 'company', code: 'code',
   referralName: 'referral_name', filledBy: 'filled_by', source: 'source', bankName: 'bank_name',
   bankAccount: 'bank_account', status: 'status', viewToken: 'view_token', registeredAt: 'registered_at',
+  assignedStaff: 'assigned_staff',
 };
 
 export const partnerFromRow = (r: Row): Partner => ({
   id: r.id, name: r.name, phone: r.phone, email: r.email, tin: r.tin, company: r.company, code: r.code,
   referralName: r.referral_name, filledBy: r.filled_by, source: r.source, bankName: r.bank_name,
   bankAccount: r.bank_account, status: r.status, viewToken: r.view_token, registeredAt: r.registered_at,
+  assignedStaff: r.assigned_staff ?? null,
 });
 /** Explicit whitelist: only these keys of a create input are ever used (no mass assignment). */
 export const pickNewPartner = (i: NewPartner): NewPartner => ({
   name: i.name, phone: i.phone, email: i.email, tin: i.tin, company: i.company, code: i.code,
   referralName: i.referralName, filledBy: i.filledBy, source: i.source, bankName: i.bankName,
-  bankAccount: i.bankAccount,
+  bankAccount: i.bankAccount, assignedStaff: i.assignedStaff ?? null,
 });
 export const pickNewCase = (i: NewCase): NewCase => ({
   partnerId: i.partnerId, clientName: i.clientName, clientPhone: i.clientPhone, licenceType: i.licenceType,
   council: i.council, missingDocs: i.missingDocs, price: i.price, markup: i.markup, invoiceNo: i.invoiceNo,
-  notesInternal: i.notesInternal,
+  notesInternal: i.notesInternal, handledBy: i.handledBy ?? null,
   ...(i.submittedAt !== undefined ? { submittedAt: i.submittedAt } : {}),
 });
 
@@ -55,7 +57,7 @@ const CASE_COLS: Record<string, string> = {
   partnerId: 'partner_id', clientName: 'client_name', clientPhone: 'client_phone', licenceType: 'licence_type',
   council: 'council', step: 'step', cancelled: 'cancelled', missingDocs: 'missing_docs', submittedAt: 'submitted_at',
   price: 'price', markup: 'markup', invoiceNo: 'invoice_no', clientPaid: 'client_paid',
-  clientPaidAt: 'client_paid_at', notesInternal: 'notes_internal',
+  clientPaidAt: 'client_paid_at', notesInternal: 'notes_internal', handledBy: 'handled_by',
 };
 
 export const caseFromRow = (r: Row): Case => ({
@@ -63,6 +65,7 @@ export const caseFromRow = (r: Row): Case => ({
   licenceType: r.licence_type, council: r.council, step: r.step as StepIndex, cancelled: r.cancelled,
   missingDocs: r.missing_docs, submittedAt: r.submitted_at, price: num(r.price), markup: num(r.markup),
   invoiceNo: r.invoice_no, clientPaid: r.client_paid, clientPaidAt: r.client_paid_at, notesInternal: r.notes_internal,
+  handledBy: r.handled_by ?? null,
 });
 export const caseToRow = (c: Partial<Case> & { submittedAt?: string }): Row => toRow(c, CASE_COLS);
 

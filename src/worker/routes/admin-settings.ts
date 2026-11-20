@@ -151,3 +151,14 @@ export function adminLicenceTypes(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
   r.get('/', async (c) => c.json({ licenceTypes: (await c.var.repo.getSettings()).licenceTypes }));
   return r;
 }
+
+/** Active staff names for the assignment pickers. Any staff may read it; emails and names only. */
+export function adminStaffDirectory(jwks?: JWTVerifyGetKey): Hono<AppEnv> {
+  const r = new Hono<AppEnv>();
+  r.onError(adminErrorHandler);
+  r.use('*', requireStaff({ jwks }));
+  r.get('/', async (c) => c.json(
+    (await c.var.repo.listStaff()).filter((s) => s.active).map((s) => ({ email: s.email, name: s.name })),
+  ));
+  return r;
+}

@@ -56,7 +56,7 @@ export function createStaffMock(partners: Partner[], cases: Case[]) {
 
   function patchCase(c: Case, ctx: Ctx): Response {
     const before = { ...c };
-    const allowed = ['clientName', 'clientPhone', 'council', 'missingDocs', 'invoiceNo', 'notesInternal', 'price', 'markup', 'step', 'cancelled', 'clientPaid', 'clientPaidAt'];
+    const allowed = ['clientName', 'clientPhone', 'council', 'missingDocs', 'invoiceNo', 'notesInternal', 'price', 'markup', 'step', 'cancelled', 'clientPaid', 'clientPaidAt', 'handledBy'];
     const patch: Record<string, unknown> = Object.fromEntries(Object.entries(ctx.body).filter(([k]) => allowed.includes(k)));
     if ('clientPaid' in patch) patch.clientPaidAt = patch.clientPaid ? (c.clientPaidAt ?? new Date().toISOString().slice(0, 10)) : null;
     const prevCommission = commissions.get(c.id);
@@ -108,6 +108,7 @@ export function createStaffMock(partners: Partner[], cases: Case[]) {
       invoiceNo: null,
       clientPaid: false,
       clientPaidAt: null,
+      handledBy: 'handledBy' in b ? ((b.handledBy as string | null) ?? null) : (p!.assignedStaff ?? ctx.me.email),
       notesInternal: null,
     };
     try {
@@ -164,6 +165,7 @@ export function createStaffMock(partners: Partner[], cases: Case[]) {
     const isAdmin = ctx.me.role === 'admin';
 
     if (path === '/licence-types') return json(200, { licenceTypes: settings.licenceTypes });
+    if (path === '/staff-directory') return json(200, staffList.filter((s) => s.active).map((s) => ({ email: s.email, name: s.name })));
 
     if (path === '/settings') {
       if (!isAdmin) return json(403, { error: '需要管理员权限' });
@@ -186,7 +188,9 @@ export function createStaffMock(partners: Partner[], cases: Case[]) {
       const pid = url.searchParams.get('partnerId');
       const step = url.searchParams.get('step');
       const month = url.searchParams.get('month');
-      return json(200, cases.filter((c) => (!pid || c.partnerId === pid) && (step === null || c.step === Number(step)) && (!month || monthOf(c) === month)));
+      const hq = url.searchParams.get('handledBy');
+      const handler = hq === 'me' ? ctx.me.email : hq;
+      return json(200, cases.filter((c) => (!handler || c.handledBy === handler) && (!pid || c.partnerId === pid) && (step === null || c.step === Number(step)) && (!month || monthOf(c) === month)));
     }
 
     const cm = /^\/cases\/([^/]+)(\/documents)?$/.exec(path);

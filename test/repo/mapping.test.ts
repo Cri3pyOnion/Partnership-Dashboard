@@ -10,11 +10,12 @@ describe('row mapping', () => {
       id: 'TSP0001', name: 'Ali', phone: '012', email: 'a@x.com', tin: null, company: 'Co', code: 'A1',
       referral_name: null, filled_by: 'IT', source: '线上', bank_name: 'MBB', bank_account: '1',
       status: '活跃', view_token: 'tok', registered_at: '2026-11-19', created_at: 'x', updated_at: 'y',
+      assigned_staff: 'ann@tohsign.com',
     });
     expect(p).toEqual({
       id: 'TSP0001', name: 'Ali', phone: '012', email: 'a@x.com', tin: null, company: 'Co', code: 'A1',
       referralName: null, filledBy: 'IT', source: '线上', bankName: 'MBB', bankAccount: '1',
-      status: '活跃', viewToken: 'tok', registeredAt: '2026-11-19',
+      status: '活跃', viewToken: 'tok', registeredAt: '2026-11-19', assignedStaff: 'ann@tohsign.com',
     });
   });
 

@@ -71,11 +71,12 @@ export class SupabaseRepo implements Repo {
     await run('saveStaff', this.db.from('staff').upsert(staffToRow(s), { onConflict: 'email' }));
   }
 
-  async listPartners(f: { status?: PartnerStatus; q?: string }): Promise<Partner[]> {
+  async listPartners(f: { status?: PartnerStatus; q?: string; assignedStaff?: string }): Promise<Partner[]> {
     const q = f.q?.trim();
     const build = () => {
       let query = this.db.from('partners').select('*');
       if (f.status) query = query.eq('status', f.status);
+      if (f.assignedStaff) query = query.eq('assigned_staff', f.assignedStaff);
       if (q) {
         const v = ilikeValue(q);
         query = query.or(['id', 'name', 'company', 'phone'].map((c) => `${c}.ilike.${v}`).join(','));
@@ -111,11 +112,12 @@ export class SupabaseRepo implements Repo {
     return partnerFromRow(r);
   }
 
-  async listCases(f: { partnerId?: string; step?: StepIndex; month?: string }): Promise<Case[]> {
+  async listCases(f: { partnerId?: string; step?: StepIndex; month?: string; handledBy?: string }): Promise<Case[]> {
     const build = () => {
       let query = this.db.from('cases').select('*');
       if (f.partnerId) query = query.eq('partner_id', f.partnerId);
       if (f.step !== undefined) query = query.eq('step', f.step);
+      if (f.handledBy) query = query.eq('handled_by', f.handledBy);
       if (f.month) {
         const [from, to] = monthRange(f.month);
         query = query.gte('submitted_at', from).lt('submitted_at', to);
