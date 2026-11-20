@@ -11,7 +11,8 @@ export default defineConfig({
         plugins: [cloudflareTest({
           wrangler: { configPath: './wrangler.jsonc' },
           // The pool bundles an older workerd than the project's compatibility_date.
-          miniflare: { compatibilityDate: '2026-08-01' },
+          // Tests use a fixed base URL, whatever the deployed PUBLIC_BASE_URL is.
+          miniflare: { compatibilityDate: '2026-08-01', bindings: { PUBLIC_BASE_URL: 'https://partners.tohssignlicense.com' } },
         })],
         test: { name: 'worker', include: ['test/worker/**/*.test.ts'] },
       },

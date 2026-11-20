@@ -4,3 +4,6 @@ dist
 .dev.vars
 .superpowers
 coverage
+
+# Local SQL with real staff emails, never committed
+*.local.sql
