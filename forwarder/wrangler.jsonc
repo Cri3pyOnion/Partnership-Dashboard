@@ -1,0 +1,9 @@
+{
+  // Deployed separately: npx wrangler deploy -c forwarder/wrangler.jsonc
+  // Takes over the old Worker name after the portal itself was renamed to "portal".
+  "name": "partner-portal",
+  "main": "index.ts",
+  "compatibility_date": "2026-11-01",
+  "workers_dev": true,
+  "preview_urls": false
+}
